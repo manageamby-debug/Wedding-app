@@ -28,6 +28,7 @@ def prepare_database():
             }
             expected = {
                 "id",
+                "user_id",
                 "groom_name",
                 "bride_name",
                 "event_date",

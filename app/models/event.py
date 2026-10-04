@@ -1,7 +1,7 @@
 from datetime import date, time
 
-from sqlalchemy import Date, Integer, String, Time
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Date, Integer, String, Time , ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column , relationship
 
 from app.core.database import Base
 
@@ -10,6 +10,9 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User", back_populates="events")
+
     groom_name: Mapped[str] = mapped_column(String, nullable=False)
     bride_name: Mapped[str] = mapped_column(String, nullable=False)
     event_date: Mapped[date] = mapped_column(Date, nullable=False)
