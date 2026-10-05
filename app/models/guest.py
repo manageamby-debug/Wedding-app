@@ -1,4 +1,6 @@
-from sqlalchemy import ForeignKey, Integer, String
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -42,6 +44,11 @@ class Guest(Base):
         String,
         nullable=False,
         default="pending"
+    )
+
+    checked_in_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True
     )
 
     contributions = relationship(

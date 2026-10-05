@@ -55,7 +55,9 @@ def create_invitation(
         invitation = Invitation(
             guest_id=guest.id,
             invitation_code=f"INV-{secrets.token_hex(6).upper()}",
-            short_code=secrets.token_urlsafe(6),
+            # The short code is a bearer capability for public invitation/RSVP
+            # access, so give it 192 bits of random entropy.
+            short_code=secrets.token_urlsafe(24),
             status="active",
         )
         db.add(invitation)

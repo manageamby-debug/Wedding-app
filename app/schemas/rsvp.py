@@ -19,3 +19,18 @@ class RSVPResponse(BaseModel):
     status: RSVPStatus
 
     model_config = ConfigDict(from_attributes=True)
+
+class RSVPListResponse(BaseModel):
+    id: int
+    guest_id: int
+    guest_name: str
+    status: RSVPStatus
+
+    model_config = ConfigDict(from_attributes=True)
+
+class RSVPSummaryResponse(BaseModel):
+    total_guests: int
+    attending: int
+    not_attending: int
+    maybe: int
+    no_response: int

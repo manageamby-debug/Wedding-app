@@ -14,7 +14,7 @@ password_hash = PasswordHash.recommended()
 
 load_dotenv()
 SECRET_KEY =os.getenv("SECRET_KEY")
-ALGORITHM ="H256"
+ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 def hash_password(password: str) -> str:
@@ -28,7 +28,7 @@ def create_access_token(data: dict):
     to_encode = data.copy()
 
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes= 60
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
 
     to_encode.update({
@@ -38,7 +38,7 @@ def create_access_token(data: dict):
     return jwt.encode(
         to_encode,
         SECRET_KEY,
-        algorithm="H256"
+        algorithm=ALGORITHM
     )
 
 def decode_access_token(token: str):
@@ -46,7 +46,7 @@ def decode_access_token(token: str):
         payload = jwt.decode(
             token,
             SECRET_KEY,
-                    algorithm="H256"
+            algorithms=[ALGORITHM]
         )
 
         return payload
@@ -77,7 +77,15 @@ def get_current_user(
             detail="Invalid token"
         )
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token",
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
 
     if user is None:
         raise HTTPException(

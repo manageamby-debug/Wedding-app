@@ -23,6 +23,7 @@ from app.models import user
 from app.models import event
 from app.models import guest
 from app.models import contributions
+from app.models import payment_audit
 from app.models import invitation
 
 target_metadata =Base.metadata
