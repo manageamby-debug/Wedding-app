@@ -20,3 +20,8 @@ class Event(Base):
     venue_name: Mapped[str] = mapped_column(String, nullable=False)
     venue_address: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    guests = relationship(
+        "Guest", back_populates="event", cascade="all, delete-orphan"
+    )

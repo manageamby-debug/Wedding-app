@@ -6,14 +6,16 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.user import User
+from dotenv import load_dotenv
+import os
 
 
 password_hash = PasswordHash.recommended()
 
-jwt_secret = "your_jwt_secret_key"
-jwt_algorithm = "HS256"
-jwt_expire_minutes = 30
-
+load_dotenv()
+SECRET_KEY =os.getenv("SECRET_KEY")
+ALGORITHM ="H256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 def hash_password(password: str) -> str:
     return password_hash.hash(password)
@@ -26,7 +28,7 @@ def create_access_token(data: dict):
     to_encode = data.copy()
 
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=jwt_expire_minutes
+        minutes= 60
     )
 
     to_encode.update({
@@ -35,16 +37,16 @@ def create_access_token(data: dict):
 
     return jwt.encode(
         to_encode,
-        jwt_secret,
-        algorithm=jwt_algorithm
+        SECRET_KEY,
+        algorithm="H256"
     )
 
 def decode_access_token(token: str):
     try:
         payload = jwt.decode(
             token,
-            jwt_secret,
-            algorithms=[jwt_algorithm]
+            SECRET_KEY,
+                    algorithm="H256"
         )
 
         return payload

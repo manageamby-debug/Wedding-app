@@ -1,9 +1,10 @@
-from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import User
-from app.schemas.user import UserCreate ,UserLogin
-from app.core.security import hash_password
-from app.core.security import hash_password, verify_password, create_access_token
+from app.schemas.user import UserCreate, UserLogin
+
 
 def create_user(db: Session, user_data: UserCreate):
     existing_user = db.query(User).filter(

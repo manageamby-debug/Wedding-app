@@ -21,29 +21,24 @@ def create_event(db: Session, event_data: EventCreate, user_id: int):
     return new_event
 
 
-def get_events(db: Session, user_id: int, 
-               status: str | None = None,
-               groom_name: str | None = None,
-               bride_name: str | None = None,
-               
-    ):
-    
+def get_events(
+    db: Session,
+    user_id: int,
+    status: str | None = None,
+    groom_name: str | None = None,
+    bride_name: str | None = None,
+):
     query = db.query(Event).filter(Event.user_id == user_id)
 
     if status is not None:
         query = query.filter(Event.status == status)
 
     if groom_name is not None:
-        query =query.filter(
-            Event.groom_name.ilike(f"%{groom_name}%")
-
-        )
+        query = query.filter(Event.groom_name.ilike(f"%{groom_name}%"))
 
     if bride_name is not None:
-        query =query.filter(
-            Event.bride_name.ilike(f"%{bride_name}%")
-        )
-        
+        query = query.filter(Event.bride_name.ilike(f"%{bride_name}%"))
+
     return query.all()
 
 
