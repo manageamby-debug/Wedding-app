@@ -51,8 +51,8 @@ export default function AddGuestScreen() {
     const cleanEmail = email.trim();
     const cleanPhone = phone.trim();
 
-    if (name.length < 2) {
-      setErrorMessage("Enter the guest's full name (at least 2 characters).");
+    if (name.length < 2 || name.length > 100) {
+      setErrorMessage("The guest's name must be between 2 and 100 characters.");
       return;
     }
 
@@ -79,7 +79,9 @@ export default function AddGuestScreen() {
       const serverMessage = responseData?.detail ?? responseData?.message;
       const validationMessage = responseData?.errors?.find(
         (item) => typeof item.msg === "string",
-      )?.msg;
+      )?.msg ?? (Array.isArray(responseData?.detail)
+        ? responseData.detail.find((item) => typeof item?.msg === "string")?.msg
+        : undefined);
 
       const message =
         isApiError && !requestError.response
@@ -131,6 +133,7 @@ export default function AddGuestScreen() {
             autoCapitalize="words"
             editable={!isSubmitting}
             onChangeText={setFullName}
+            maxLength={100}
             placeholder="Guest's full name"
             placeholderTextColor="#827C76"
             returnKeyType="next"
