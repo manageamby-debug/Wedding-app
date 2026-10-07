@@ -1,7 +1,7 @@
 """Add event name, couple names and contribution target.
 
 Revision ID: 58a1c7d92e40
-Revises: fff9f9a0b5f5
+Revises: 919d5e683505
 Create Date: 2026-10-07
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision: str = "58a1c7d92e40"
-down_revision: Union[str, Sequence[str], None] = "fff9f9a0b5f5"
+down_revision: Union[str, Sequence[str], None] = "919d5e683505"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
