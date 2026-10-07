@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import AuthLayout from "../../components/AuthLayout";
 import { colors } from "../../constants/theme";
 import api from "../../services/api";
@@ -20,11 +20,15 @@ type CurrentUser = {
 };
 
 export default function LoginScreen() {
+  const { session } = useLocalSearchParams<{ session?: string }>();
+  const sessionReason = Array.isArray(session) ? session[0] : session;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState("");
-  const [isError, setIsError] = useState(false);
+  const [message, setMessage] = useState(
+    sessionReason === "expired" ? "Your session expired. Please sign in again." : "",
+  );
+  const [isError, setIsError] = useState(sessionReason === "expired");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleLogin() {
