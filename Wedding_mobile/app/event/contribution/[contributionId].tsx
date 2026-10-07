@@ -16,6 +16,7 @@ type EventContribution = {
   paid_at: string | null;
   rejection_reason: string | null;
   rejected_at: string | null;
+  has_payment_proof?: boolean;
 };
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -214,6 +215,7 @@ export default function ContributionDetailsScreen() {
                 <DetailRow label="Guest" value={contribution.guest_name} />
                 <DetailRow label="Payment method" value={formatPaymentMethod(contribution.payment_method)} />
                 <DetailRow label="Reference" value={contribution.transaction_reference || "Not provided"} />
+                <DetailRow label="Payment proof" value={contribution.has_payment_proof ? "Uploaded" : "Not uploaded"} />
                 <DetailRow label="Paid at" value={formatDateTime(contribution.paid_at)} />
                 {contribution.rejection_reason ? (
                   <>

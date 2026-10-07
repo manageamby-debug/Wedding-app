@@ -56,7 +56,10 @@ export default function AddContributionScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [transactionReference, setTransactionReference] = useState("");
   const [mode, setMode] = useState<ContributionMode>("pending");
-  const [paymentProof, setPaymentProof] = useState<string | null>(null);
+  const [paymentProof, setPaymentProof] = useState<{ uri: string; mimeType: string } | null>(null);
+  // Set when the contribution was saved but its payment proof failed to upload,
+  // so retrying never creates the contribution twice.
+  const [savedContributionId, setSavedContributionId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -71,8 +74,9 @@ export default function AddContributionScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        console.log("Payment proof selected:", result.assets[0].uri);
-        setPaymentProof(result.assets[0].uri);
+        const asset = result.assets[0];
+        console.log("Payment proof selected:", asset.uri);
+        setPaymentProof({ uri: asset.uri, mimeType: asset.mimeType ?? "image/jpeg" });
       }
     } catch (pickerError) {
       console.error("Pick payment proof failed:", pickerError);
@@ -80,8 +84,67 @@ export default function AddContributionScreen() {
     }
   }
 
+  async function uploadPaymentProof(contributionId: number): Promise<boolean> {
+    if (!paymentProof) return true;
+
+    try {
+      const extension = paymentProof.mimeType === "image/png"
+        ? "png"
+        : paymentProof.mimeType === "image/webp"
+          ? "webp"
+          : "jpg";
+      const fileName = `payment-proof.${extension}`;
+      const formData = new FormData();
+
+      if (Platform.OS === "web") {
+        const blob = await (await fetch(paymentProof.uri)).blob();
+        formData.append("file", blob, fileName);
+      } else {
+        formData.append("file", {
+          uri: paymentProof.uri,
+          name: fileName,
+          type: paymentProof.mimeType,
+        } as unknown as Blob);
+      }
+
+      const response = await api.post(`/contributions/${contributionId}/payment-proof`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 30000,
+      });
+
+      console.log("Payment proof uploaded:", response.data);
+      return true;
+    } catch (uploadError) {
+      const isApiError = axios.isAxiosError<ApiErrorResponse>(uploadError);
+      const detail = isApiError ? uploadError.response?.data?.detail : undefined;
+      const reason = isApiError && !uploadError.response
+        ? "Cannot reach the server."
+        : typeof detail === "string"
+          ? detail
+          : "Please try again.";
+
+      console.error("Payment proof upload failed:", {
+        status: isApiError ? uploadError.response?.status : undefined,
+        reason,
+      });
+      setErrorMessage(`The contribution was saved, but the payment proof was not uploaded. ${reason}`);
+      return false;
+    }
+  }
+
+  async function retryProofUpload() {
+    if (isSubmitting || savedContributionId === null) return;
+
+    setErrorMessage("");
+    setIsSubmitting(true);
+    const uploaded = await uploadPaymentProof(savedContributionId);
+    setIsSubmitting(false);
+
+    if (uploaded) router.replace(returnPath);
+  }
+
   async function addContribution() {
-    if (isSubmitting) return;
+    if (isSubmitting || savedContributionId !== null) return;
 
     if (!eventId || !/^\d+$/.test(eventId) || Number(eventId) < 1
       || !currentGuestId || !/^\d+$/.test(currentGuestId) || Number(currentGuestId) < 1) {
@@ -117,6 +180,16 @@ export default function AddContributionScreen() {
       const response = await api.post<ContributionResponse>(endpoint, payload);
 
       console.log("Contribution created:", response.data);
+
+      if (paymentProof) {
+        const uploaded = await uploadPaymentProof(response.data.id);
+
+        if (!uploaded) {
+          setSavedContributionId(response.data.id);
+          return;
+        }
+      }
+
       router.replace(returnPath);
     } catch (requestError) {
       const isApiError = axios.isAxiosError<ApiErrorResponse>(requestError);
@@ -249,12 +322,12 @@ export default function AddContributionScreen() {
               <Image
                 accessibilityLabel="Selected payment proof"
                 resizeMode="contain"
-                source={{ uri: paymentProof }}
+                source={{ uri: paymentProof.uri }}
                 style={styles.proofImage}
               />
               <View style={styles.proofCopy}>
                 <Text style={styles.proofTitle}>Payment proof selected ✓</Text>
-                <Text style={styles.helper}>Preview only for now. It is not uploaded or saved with the contribution yet.</Text>
+                <Text style={styles.helper}>Uploaded together with the contribution when you save it. Uploading proof does not mark the payment as paid.</Text>
                 <View style={styles.proofActions}>
                   <Pressable
                     accessibilityRole="button"
@@ -291,17 +364,39 @@ export default function AddContributionScreen() {
             <Text accessibilityLiveRegion="polite" style={styles.error}>{errorMessage}</Text>
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: isSubmitting }}
-            disabled={isSubmitting}
-            onPress={addContribution}
-            style={({ pressed }) => [styles.submitButton, pressed && styles.pressed, isSubmitting && styles.disabledButton]}
-          >
-            <Text style={styles.submitText}>
-              {isSubmitting ? "Saving contribution…" : "Save Contribution"}
-            </Text>
-          </Pressable>
+          {savedContributionId !== null ? (
+            <View style={styles.recoveryBlock}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isSubmitting }}
+                disabled={isSubmitting}
+                onPress={retryProofUpload}
+                style={({ pressed }) => [styles.submitButton, pressed && styles.pressed, isSubmitting && styles.disabledButton]}
+              >
+                <Text style={styles.submitText}>{isSubmitting ? "Uploading proof…" : "Retry Proof Upload"}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSubmitting}
+                onPress={() => router.replace(returnPath)}
+                style={styles.proofButton}
+              >
+                <Text style={styles.proofButtonText}>Continue without proof</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: isSubmitting }}
+              disabled={isSubmitting}
+              onPress={addContribution}
+              style={({ pressed }) => [styles.submitButton, pressed && styles.pressed, isSubmitting && styles.disabledButton]}
+            >
+              <Text style={styles.submitText}>
+                {isSubmitting ? (paymentProof ? "Saving and uploading…" : "Saving contribution…") : "Save Contribution"}
+              </Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -335,6 +430,7 @@ const styles = StyleSheet.create({
   proofPreview: { flexDirection: "row", gap: 12, marginBottom: 18, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
   proofImage: { width: 120, height: 160, borderRadius: 8, backgroundColor: colors.surface },
   proofActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  recoveryBlock: { gap: 10 },
   proofCopy: { flex: 1 },
   proofTitle: { color: colors.success, fontSize: 13, fontWeight: "700", marginBottom: 4 },
   proofRemoveButton: { alignSelf: "flex-start", minHeight: 32, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9, backgroundColor: colors.accentSoft },
