@@ -556,14 +556,29 @@ export default function EventDetailsScreen() {
                 ) : null}
 
                 {guests.map((guest) => {
-                  const guestRSVP = rsvps.find((rsvp) => rsvp.guest_id === guest.id);
+                  const guestRsvp = rsvps.find(
+                    (item) => Number(item.guest_id) === Number(guest.id),
+                  );
                   const rsvpStatus = isRsvpsLoading
                     ? "Loading…"
                     : rsvpsError
                       ? "Unavailable"
-                      : guestRSVP
-                        ? guestRSVP.status.replaceAll("_", " ")
-                        : "Not responded";
+                      : guestRsvp?.status === "attending"
+                        ? "✅ Accepted"
+                        : guestRsvp?.status === "not_attending"
+                          ? "❌ Declined"
+                          : guestRsvp?.status === "maybe"
+                            ? "🤔 Maybe"
+                            : "⏳ Pending";
+                  const rsvpColor = isRsvpsLoading || rsvpsError
+                    ? colors.textMuted
+                    : guestRsvp?.status === "attending"
+                      ? colors.success
+                      : guestRsvp?.status === "not_attending"
+                        ? colors.danger
+                        : guestRsvp?.status === "maybe"
+                          ? colors.info
+                          : colors.accent;
                   const payment = getGuestPaymentStatus(guest.id);
                   const paymentUnavailable = isContributionsLoading || !!contributionsError;
 
@@ -591,7 +606,7 @@ export default function EventDetailsScreen() {
                       <Text style={[styles.guestPayment, { color: getGuestPaymentColor(payment.status, paymentUnavailable) }]}>
                         Payment: {paymentUnavailable ? (isContributionsLoading ? "Loading…" : "Unavailable") : getGuestPaymentLabel(payment.status)}
                       </Text>
-                      <Text style={styles.rsvpStatus}>RSVP: {rsvpStatus}</Text>
+                      <Text style={[styles.rsvpStatus, { color: rsvpColor }]}>RSVP: {rsvpStatus}</Text>
                       <Text style={styles.rsvpStatus}>
                         Check-in: {guest.check_in_status === "checked_in" ? "Checked in" : "Not checked in"}
                       </Text>

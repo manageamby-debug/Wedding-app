@@ -18,6 +18,7 @@ type EventContribution = {
 
 type EventGuest = {
   id: number;
+  full_name: string;
   phone: string | null;
 };
 
@@ -88,11 +89,32 @@ function statusColor(status: PaymentStatus): string {
   return colors.accent;
 }
 
+function formatPaymentMethod(method: string | null | undefined): string {
+  if (!method) return "Not provided";
+
+  const labels: Record<string, string> = {
+    mpesa: "M-Pesa",
+    tigopesa: "Tigo Pesa",
+    airtel_money: "Airtel Money",
+    bank: "Bank",
+    cash: "Cash",
+  };
+  const key = method.trim().toLowerCase();
+  return labels[key] ?? method.replaceAll("_", " ");
+}
+
+function formatPaymentStatus(status: PaymentStatus): string {
+  if (status === "paid") return "✅ Paid";
+  if (status === "rejected") return "❌ Rejected";
+  return "⏳ Pending";
+}
+
 export default function PendingContributionsScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const eventId = firstParam(params.id);
 
   const [contributions, setContributions] = useState<EventContribution[]>([]);
+  const [guests, setGuests] = useState<EventGuest[]>([]);
   const [filter, setFilter] = useState<PaymentFilter>("pending");
   const [search, setSearch] = useState("");
   const [guestPhones, setGuestPhones] = useState<Record<number, string>>({});
@@ -106,6 +128,7 @@ export default function PendingContributionsScreen() {
 
     if (!isPositiveId(eventId)) {
       setContributions([]);
+      setGuests([]);
       setErrorMessage("This event link is invalid. Return to Event Details and try again.");
       setIsLoading(false);
       return () => {
@@ -118,8 +141,8 @@ export default function PendingContributionsScreen() {
       setErrorMessage("");
 
       try {
-        // Two requests for the whole event, never one per payment: the payments, and the
-        // guest list so payments can also be found by the guest's phone number.
+        // Load payments and guests once for the event; use the guest list for local name
+        // and phone lookup rather than requesting a guest for each payment.
         const [contributionsResult, guestsResult] = await Promise.allSettled([
           api.get<EventContribution[]>(`/events/${eventId}/contributions`),
           api.get<EventGuest[]>(`/events/${eventId}/guest`),
@@ -131,6 +154,7 @@ export default function PendingContributionsScreen() {
         setContributions(contributionsResult.value.data);
 
         if (guestsResult.status === "fulfilled") {
+          setGuests(guestsResult.value.data);
           const phones: Record<number, string> = {};
           for (const guest of guestsResult.value.data) {
             if (guest.phone) phones[guest.id] = guest.phone;
@@ -138,6 +162,7 @@ export default function PendingContributionsScreen() {
           setGuestPhones(phones);
           setPhoneSearchUnavailable(false);
         } else {
+          setGuests([]);
           setGuestPhones({});
           setPhoneSearchUnavailable(true);
         }
@@ -145,6 +170,7 @@ export default function PendingContributionsScreen() {
         if (!isActive) return;
 
         setContributions([]);
+        setGuests([]);
         setErrorMessage(
           axios.isAxiosError(requestError) && !requestError.response
             ? "Cannot reach the server. Check that the backend is running."
@@ -164,6 +190,11 @@ export default function PendingContributionsScreen() {
     };
   }, [eventId, retryCount]));
 
+  function getGuestName(guestId: number): string {
+    const guest = guests.find((item) => Number(item.id) === Number(guestId));
+    return guest?.full_name || `Guest #${guestId}`;
+  }
+
   // Search first, so the counts on the filter chips show how many matches each status has.
   const query = search.trim().toLowerCase();
   const queryNational = nationalDigits(query);
@@ -172,7 +203,8 @@ export default function PendingContributionsScreen() {
       const phone = guestPhones[contribution.guest_id] ?? "";
 
       return (
-        (contribution.guest_name ?? "").toLowerCase().includes(query)
+        getGuestName(contribution.guest_id).toLowerCase().includes(query)
+        || (contribution.guest_name ?? "").toLowerCase().includes(query)
         || (contribution.transaction_reference ?? "").toLowerCase().includes(query)
         || phone.toLowerCase().includes(query)
         || (queryNational.length >= 3 && nationalDigits(phone).includes(queryNational))
@@ -284,38 +316,40 @@ export default function PendingContributionsScreen() {
 
               {filteredContributions.map((contribution) => {
                 const status = getPaymentStatus(contribution);
+                const guestName = getGuestName(contribution.guest_id);
 
                 return (
-                  <View key={contribution.id} style={styles.contributionCard}>
+                  <Pressable
+                    accessibilityHint={`Opens the payment details, proof and status for ${guestName}`}
+                    accessibilityRole="button"
+                    key={contribution.id}
+                    onPress={() => router.push(`/event/contribution/${contribution.id}?eventId=${eventId}`)}
+                    style={({ pressed }) => [styles.contributionCard, pressed && styles.pressed]}
+                  >
                     <View style={styles.row}>
-                      <Text style={styles.guestName}>{contribution.guest_name}</Text>
-                      <Text style={[styles.status, { color: statusColor(status) }]}>{status}</Text>
+                      <Text style={styles.guestName}>{guestName}</Text>
+                      <Text style={[styles.status, { color: statusColor(status) }]}>{formatPaymentStatus(status)}</Text>
                     </View>
-                    <Text style={styles.amount}>{formatTsh(contribution.amount)}</Text>
-                    <Text style={styles.meta}>{contribution.payment_method.replaceAll("_", " ")}</Text>
-                    {contribution.transaction_reference ? (
-                      <Text style={styles.metaPlain}>Ref: {contribution.transaction_reference}</Text>
-                    ) : null}
+                    <Text style={styles.amount}>
+                      Amount: {toAmount(contribution.amount).toLocaleString("en-TZ", { maximumFractionDigits: 2 })} TSh
+                    </Text>
+                    <Text style={styles.meta}>Payment Method: {formatPaymentMethod(contribution.payment_method)}</Text>
+                    <Text style={styles.metaPlain}>Reference: {contribution.transaction_reference || "Not provided"}</Text>
                     {status === "rejected" && contribution.rejection_reason ? (
                       <Text style={styles.metaPlain}>Reason: {contribution.rejection_reason}</Text>
                     ) : null}
-                    <Pressable
-                      accessibilityHint={`Opens the payment details for ${contribution.guest_name}`}
-                      accessibilityRole="button"
-                      onPress={() => router.push(`/event/contribution/${contribution.id}?eventId=${eventId}`)}
-                      style={styles.viewButton}
-                    >
-                      <Text style={styles.viewButtonText}>View Contribution</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityHint={`Opens the details screen for ${contribution.guest_name}`}
-                      accessibilityRole="button"
-                      onPress={() => router.push(`/event/guest/${contribution.guest_id}?eventId=${eventId}`)}
-                      style={styles.viewButton}
-                    >
-                      <Text style={styles.viewButtonText}>View Guest</Text>
-                    </Pressable>
-                  </View>
+                    <View style={styles.cardFooter}>
+                      <Text style={styles.viewDetails}>View details  ›</Text>
+                      <Pressable
+                        accessibilityHint={`Opens the details screen for ${guestName}`}
+                        accessibilityRole="button"
+                        onPress={() => router.push(`/event/guest/${contribution.guest_id}?eventId=${eventId}`)}
+                        style={styles.viewButton}
+                      >
+                        <Text style={styles.viewButtonText}>View Guest</Text>
+                      </Pressable>
+                    </View>
+                  </Pressable>
                 );
               })}
             </>
@@ -361,6 +395,9 @@ const styles = StyleSheet.create({
   amount: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 9 },
   meta: { color: colors.textMuted, fontSize: 12, marginTop: 7, textTransform: "capitalize" },
   metaPlain: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 7 },
-  viewButton: { alignSelf: "flex-start", minHeight: 34, justifyContent: "center", marginTop: 12, paddingHorizontal: 11, borderRadius: 9, backgroundColor: colors.accentSoft },
+  viewButton: { alignSelf: "flex-start", minHeight: 34, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9, backgroundColor: colors.accentSoft },
   viewButtonText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
+  cardFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12 },
+  viewDetails: { color: colors.accent, fontSize: 12, fontWeight: "700" },
+  pressed: { opacity: 0.78 },
 });
