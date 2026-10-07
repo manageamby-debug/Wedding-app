@@ -17,6 +17,9 @@ __pycache__/
 *.sqlite
 *.sqlite3
 
+# User-uploaded files (payment proofs)
+uploads/
+
 # Test, type-checker, and linter output
 .pytest_cache/
 .mypy_cache/

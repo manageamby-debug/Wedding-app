@@ -141,6 +141,7 @@ def get_event_contributions(
             "paid_at": contribution.paid_at,
             "rejection_reason": contribution.rejection_reason,
             "rejected_at": contribution.rejected_at,
+            "has_payment_proof": contribution.has_payment_proof,
         }
         for contribution, guest_name in results
     ]
@@ -412,6 +413,7 @@ def get_guest_contributions(
             "paid_at": contribution.paid_at,
             "rejection_reason": contribution.rejection_reason,
             "rejected_at": contribution.rejected_at,
+            "has_payment_proof": contribution.has_payment_proof,
         }
         for contribution in contributions
     ]

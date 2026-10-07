@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -22,6 +23,7 @@ from app.schemas.contribution import (
     ManualContributionCreate,
 )
 from app.services import contribution as contribution_service
+from app.services import payment_proof as payment_proof_service
 
 router = APIRouter()
 
@@ -296,3 +298,60 @@ def reject_contribution(
         )
 
     return contribution
+
+
+@router.post(
+    "/contributions/{contribution_id}/payment-proof",
+    response_model=ContributionPaymentResponse,
+)
+async def upload_payment_proof(
+    file: UploadFile = File(...),
+    contribution: Contribution = Depends(require_contribution_owner),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("organizer")),
+):
+    max_bytes = payment_proof_service.MAX_PROOF_BYTES
+    data = await file.read(max_bytes + 1)
+
+    if not data:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty")
+
+    if len(data) > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail="Payment proof must be 5 MB or smaller",
+        )
+
+    extension = payment_proof_service.detect_image_type(data)
+
+    if extension is None:
+        raise HTTPException(
+            status_code=415,
+            detail="Payment proof must be a JPEG, PNG or WebP image",
+        )
+
+    # Uploading proof never changes the payment status; the organizer still has
+    # to confirm the payment separately.
+    return payment_proof_service.save_payment_proof(
+        db,
+        contribution,
+        data,
+        extension,
+        current_user.id,
+    )
+
+
+@router.get("/contributions/{contribution_id}/payment-proof")
+def get_payment_proof(
+    contribution: Contribution = Depends(require_contribution_owner),
+):
+    proof = payment_proof_service.get_payment_proof_file(contribution)
+
+    if proof is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No payment proof uploaded for this contribution",
+        )
+
+    path, media_type = proof
+    return FileResponse(path, media_type=media_type)

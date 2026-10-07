@@ -44,6 +44,7 @@ class ContributionResponse(BaseModel):
     paid_at: datetime | None
     rejection_reason: str | None = None
     rejected_at: datetime | None = None
+    has_payment_proof: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,6 +71,7 @@ class ContributionPaymentResponse(BaseModel):
     paid_at: datetime | None
     rejection_reason: str | None
     rejected_at: datetime | None
+    has_payment_proof: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -92,6 +94,7 @@ class ContributionListResponse(BaseModel):
     paid_at: datetime | None
     rejection_reason: str | None
     rejected_at: datetime | None
+    has_payment_proof: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -119,5 +122,6 @@ class ContributionRejectionResponse(BaseModel):
     paid_at: datetime | None
     rejection_reason: str | None
     rejected_at: datetime | None
+    has_payment_proof: bool = False
 
     model_config = ConfigDict(from_attributes=True)
