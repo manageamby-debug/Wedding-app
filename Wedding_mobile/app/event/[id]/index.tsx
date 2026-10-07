@@ -7,12 +7,17 @@ import { colors } from "../../../src/constants/theme";
 
 type EventDetailsData = {
   id: number;
+  name: string;
+  couple_names: string;
   groom_name: string;
   bride_name: string;
   event_date: string;
   event_time: string;
+  venue: string;
   venue_name: string;
-  venue_address: string;
+  venue_address: string | null;
+  description: string | null;
+  target_contribution: number | string;
   status: "draft" | "published" | "completed" | "cancelled";
 };
 
@@ -312,7 +317,8 @@ export default function EventDetailsScreen() {
 
           {event ? (
             <>
-              <Text style={styles.coupleNames}>{event.groom_name} &amp; {event.bride_name}</Text>
+              <Text style={styles.eventName}>{event.name}</Text>
+              <Text style={styles.coupleNames}>{event.couple_names || `${event.groom_name} & ${event.bride_name}`}</Text>
               <View style={styles.statusRow}>
                 <Text style={styles.label}>STATUS</Text>
                 <Text style={styles.status}>{event.status}</Text>
@@ -322,9 +328,19 @@ export default function EventDetailsScreen() {
                 <DetailRow label="Event ID" value={String(event.id)} />
                 <DetailRow label="Date" value={event.event_date} />
                 <DetailRow label="Time" value={event.event_time.slice(0, 5)} />
-                <DetailRow label="Venue" value={event.venue_name} />
-                <DetailRow label="Address" value={event.venue_address} last />
+                <DetailRow label="Venue" value={event.venue || event.venue_name} />
+                {event.venue_address && event.venue_address !== (event.venue || event.venue_name) ? (
+                  <DetailRow label="Address" value={event.venue_address} />
+                ) : null}
+                <DetailRow label="Contribution target" value={formatTsh(event.target_contribution)} last={!event.description} />
               </View>
+
+              {event.description ? (
+                <View style={styles.eventDescription}>
+                  <Text style={styles.label}>DESCRIPTION</Text>
+                  <Text style={styles.descriptionText}>{event.description}</Text>
+                </View>
+              ) : null}
 
               <Pressable
                 accessibilityHint="Opens the form to edit this event's details"
@@ -743,10 +759,13 @@ const styles = StyleSheet.create({
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
   title: { color: colors.text, fontSize: 26, fontWeight: "700", marginBottom: 20 },
+  eventName: { color: colors.textMuted, fontSize: 13, fontWeight: "600", marginBottom: 5 },
   coupleNames: { color: colors.text, fontSize: 21, fontWeight: "700", marginBottom: 18 },
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderTopWidth: 1, borderTopColor: colors.border },
   status: { color: colors.accent, fontSize: 12, fontWeight: "700", textTransform: "capitalize" },
   details: { borderTopWidth: 1, borderTopColor: colors.border },
+  eventDescription: { paddingVertical: 14, borderTopWidth: 1, borderTopColor: colors.border },
+  descriptionText: { color: colors.text, fontSize: 14, lineHeight: 21, marginTop: 8 },
   editEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 16, borderWidth: 1, borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
   deleteEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: "#351F1D" },
   deleteEventButtonDisabled: { opacity: 0.55 },

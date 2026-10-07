@@ -1,5 +1,5 @@
-import { useState } from "react";
 import axios from "axios";
+import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,12 +16,17 @@ import { colors } from "../src/constants/theme";
 
 type EventResponse = {
   id: number;
+  name: string;
+  couple_names: string;
   groom_name: string;
   bride_name: string;
   event_date: string;
   event_time: string;
+  venue: string;
   venue_name: string;
   venue_address: string;
+  description: string | null;
+  target_contribution: number | string;
   status: "draft" | "published" | "completed" | "cancelled";
 };
 
@@ -54,12 +59,13 @@ function getTodayIsoDate(): string {
 }
 
 export default function CreateEventScreen() {
-  const [groomName, setGroomName] = useState("");
-  const [brideName, setBrideName] = useState("");
+  const [name, setName] = useState("");
+  const [coupleNames, setCoupleNames] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventTime, setEventTime] = useState("");
-  const [venueName, setVenueName] = useState("");
-  const [venueAddress, setVenueAddress] = useState("");
+  const [venue, setVenue] = useState("");
+  const [description, setDescription] = useState("");
+  const [targetContribution, setTargetContribution] = useState("");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,25 +73,32 @@ export default function CreateEventScreen() {
   async function createEvent() {
     if (isSubmitting) return;
 
-    const issue = !groomName.trim()
-      ? "Please enter the groom's name."
-      : groomName.trim().length < 2
-        ? "The groom's name must be at least 2 characters."
-        : !brideName.trim()
-          ? "Please enter the bride's name."
-          : brideName.trim().length < 2
-            ? "The bride's name must be at least 2 characters."
-            : !isValidIsoDate(eventDate.trim())
-              ? "Enter a valid date in YYYY-MM-DD format."
-              : eventDate.trim() < getTodayIsoDate()
-                ? "The event date cannot be in the past."
-                : !/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(eventTime.trim())
-                  ? "Enter a valid time in 24-hour HH:MM format."
-                  : !venueName.trim() || venueName.trim().length < 2
-                    ? "Enter a venue name with at least 2 characters."
-                    : !venueAddress.trim() || venueAddress.trim().length < 2
-                      ? "Enter a venue address with at least 2 characters."
-                      : "";
+    const eventName = name.trim();
+    const couple = coupleNames.trim();
+    const date = eventDate.trim();
+    const time = eventTime.trim();
+    const eventVenue = venue.trim();
+    const rawTarget = targetContribution.trim();
+    const targetAmount = rawTarget ? Number(rawTarget) : 0;
+    const coupleParts = couple.split("&", 2).map((part) => part.trim());
+
+    const issue = !eventName || eventName.length < 2 || eventName.length > 255
+      ? "Enter an event name between 2 and 255 characters."
+      : coupleParts.length !== 2 || coupleParts.some((part) => part.length < 2 || part.length > 100)
+        ? "Enter both couple names separated by '&', for example John & Mary."
+        : !isValidIsoDate(date)
+          ? "Enter a valid date in YYYY-MM-DD format."
+          : date < getTodayIsoDate()
+            ? "The event date cannot be in the past."
+            : !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)
+              ? "Enter a valid time in 24-hour HH:MM format."
+              : eventVenue.length < 2 || eventVenue.length > 255
+                ? "Enter a venue between 2 and 255 characters."
+                : description.trim().length > 5000
+                  ? "Description must be 5,000 characters or fewer."
+                  : !Number.isFinite(targetAmount) || targetAmount < 0 || !/^\d{1,12}(\.\d{1,2})?$/.test(rawTarget || "0")
+                    ? "Enter a target contribution amount with up to 2 decimal places."
+                    : "";
 
     if (issue) {
       setIsError(true);
@@ -99,30 +112,27 @@ export default function CreateEventScreen() {
 
     try {
       const response = await api.post<EventResponse>("/events", {
-        groom_name: groomName.trim(),
-        bride_name: brideName.trim(),
-        event_date: eventDate.trim(),
-        event_time: eventTime.trim(),
-        venue_name: venueName.trim(),
-        venue_address: venueAddress.trim(),
+        name: eventName,
+        couple_names: couple,
+        event_date: date,
+        event_time: time,
+        venue: eventVenue,
+        description: description.trim() || null,
+        target_contribution: targetAmount,
         status: "draft",
       });
 
       console.log("Event created:", response.data);
-      setMessage("Event created successfully.");
-      setGroomName("");
-      setBrideName("");
-      setEventDate("");
-      setEventTime("");
-      setVenueName("");
-      setVenueAddress("");
+      router.replace("/dashboard");
     } catch (error) {
       const isApiError = axios.isAxiosError<ApiErrorResponse>(error);
       const responseData = isApiError ? error.response?.data : undefined;
       const serverMessage = responseData?.message ?? responseData?.detail;
       const validationMessage = responseData?.errors?.find(
         (item) => typeof item.msg === "string",
-      )?.msg;
+      )?.msg ?? (Array.isArray(responseData?.detail)
+        ? responseData.detail.find((item) => typeof item?.msg === "string")?.msg
+        : undefined);
       const errorMessage =
         isApiError && !error.response
           ? "Unable to reach the server. Check that the backend is running."
@@ -161,31 +171,35 @@ export default function CreateEventScreen() {
           <Text style={styles.eyebrow}>A NEW CHAPTER</Text>
           <Text style={styles.title}>Create an event</Text>
           <Text style={styles.subtitle}>
-            Add the couple, date and venue to start planning their celebration.
+            Add the celebration details, then invite guests and start planning.
           </Text>
 
-          <Text style={styles.label}>GROOM&apos;S NAME</Text>
+          <Text style={styles.label}>EVENT NAME</Text>
           <TextInput
-            accessibilityLabel="Groom's name"
+            accessibilityLabel="Event name"
             autoCapitalize="words"
-            onChangeText={setGroomName}
-            placeholder="Groom's full name"
+            editable={!isSubmitting}
+            maxLength={255}
+            onChangeText={setName}
+            placeholder="Wedding Ceremony"
             placeholderTextColor="#827C76"
             returnKeyType="next"
             style={styles.input}
-            value={groomName}
+            value={name}
           />
 
-          <Text style={styles.label}>BRIDE&apos;S NAME</Text>
+          <Text style={styles.label}>COUPLE NAMES</Text>
           <TextInput
-            accessibilityLabel="Bride's name"
+            accessibilityLabel="Couple names"
             autoCapitalize="words"
-            onChangeText={setBrideName}
-            placeholder="Bride's full name"
+            editable={!isSubmitting}
+            maxLength={203}
+            onChangeText={setCoupleNames}
+            placeholder="John & Mary"
             placeholderTextColor="#827C76"
             returnKeyType="next"
             style={styles.input}
-            value={brideName}
+            value={coupleNames}
           />
 
           <View style={styles.splitFields}>
@@ -194,6 +208,8 @@ export default function CreateEventScreen() {
               <TextInput
                 accessibilityLabel="Event date"
                 autoCapitalize="none"
+                editable={!isSubmitting}
+                maxLength={10}
                 onChangeText={setEventDate}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor="#827C76"
@@ -203,10 +219,12 @@ export default function CreateEventScreen() {
               />
             </View>
             <View style={styles.splitField}>
-              <Text style={styles.label}>TIME</Text>
+              <Text style={styles.label}>TIME · 24-HOUR</Text>
               <TextInput
                 accessibilityLabel="Event time"
                 autoCapitalize="none"
+                editable={!isSubmitting}
+                maxLength={5}
                 onChangeText={setEventTime}
                 placeholder="HH:MM"
                 placeholderTextColor="#827C76"
@@ -217,32 +235,50 @@ export default function CreateEventScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>VENUE NAME</Text>
+          <Text style={styles.label}>VENUE</Text>
           <TextInput
-            accessibilityLabel="Venue name"
+            accessibilityLabel="Venue"
             autoCapitalize="words"
-            onChangeText={setVenueName}
-            placeholder="e.g. Garden Estate"
+            editable={!isSubmitting}
+            maxLength={255}
+            onChangeText={setVenue}
+            placeholder="Shinyanga Hotel"
             placeholderTextColor="#827C76"
             returnKeyType="next"
             style={styles.input}
-            value={venueName}
+            value={venue}
           />
 
-          <Text style={styles.label}>VENUE ADDRESS</Text>
+          <Text style={styles.label}>DESCRIPTION · OPTIONAL</Text>
           <TextInput
-            accessibilityLabel="Venue address"
+            accessibilityLabel="Event description, optional"
             autoCapitalize="sentences"
+            editable={!isSubmitting}
+            maxLength={5000}
             multiline
-            onChangeText={setVenueAddress}
-            placeholder="Street, town or area"
+            onChangeText={setDescription}
+            placeholder="Tell guests about the celebration"
+            placeholderTextColor="#827C76"
+            returnKeyType="next"
+            style={[styles.input, styles.descriptionInput]}
+            textAlignVertical="top"
+            value={description}
+          />
+
+          <Text style={styles.label}>TARGET CONTRIBUTION · TSH</Text>
+          <TextInput
+            accessibilityLabel="Target contribution in Tanzanian shillings"
+            editable={!isSubmitting}
+            keyboardType="decimal-pad"
+            maxLength={15}
+            onChangeText={setTargetContribution}
+            placeholder="5000000"
             placeholderTextColor="#827C76"
             returnKeyType="done"
-            style={[styles.input, styles.addressInput]}
-            textAlignVertical="top"
-            value={venueAddress}
+            style={styles.input}
+            value={targetContribution}
           />
-          <Text style={styles.helper}>New events are saved as drafts.</Text>
+          <Text style={styles.helper}>Leave blank if there is no contribution target. New events are saved as drafts.</Text>
 
           {message ? (
             <Text accessibilityLiveRegion="polite" style={[styles.message, isError ? styles.error : styles.success]}>
@@ -278,8 +314,8 @@ const styles = StyleSheet.create({
   input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
   splitFields: { flexDirection: "row", gap: 12 },
   splitField: { flex: 1 },
-  addressInput: { minHeight: 78, paddingTop: 13 },
-  helper: { color: colors.textMuted, fontSize: 11, marginTop: -7 },
+  descriptionInput: { minHeight: 92, paddingTop: 13 },
+  helper: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: -7 },
   message: { fontSize: 12, lineHeight: 18, marginTop: 12 },
   error: { color: "#F0A095" },
   success: { color: colors.success },

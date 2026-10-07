@@ -154,6 +154,14 @@ export default function PendingContributionsScreen() {
                     <Text style={styles.metaPlain}>Ref: {contribution.transaction_reference}</Text>
                   ) : null}
                   <Pressable
+                    accessibilityHint={`Opens the payment details for ${contribution.guest_name}`}
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/contribution/${contribution.id}?eventId=${eventId}`)}
+                    style={styles.viewButton}
+                  >
+                    <Text style={styles.viewButtonText}>View Contribution</Text>
+                  </Pressable>
+                  <Pressable
                     accessibilityHint={`Opens the details screen for ${contribution.guest_name}`}
                     accessibilityRole="button"
                     onPress={() => router.push(`/event/guest/${contribution.guest_id}?eventId=${eventId}`)}

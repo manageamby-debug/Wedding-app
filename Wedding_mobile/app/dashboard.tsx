@@ -14,12 +14,17 @@ type DashboardUser = {
 
 type DashboardEvent = {
   id: number;
+  name: string;
+  couple_names: string;
   groom_name: string;
   bride_name: string;
   event_date: string;
   event_time: string;
+  venue: string;
   venue_name: string;
   venue_address: string;
+  description: string | null;
+  target_contribution: number | string;
   status: "draft" | "published" | "completed" | "cancelled";
 };
 
@@ -156,11 +161,12 @@ export default function Dashboard() {
                 style={({ pressed }) => [styles.eventCard, pressed && styles.eventCardPressed]}
               >
                 <View style={styles.eventHeading}>
-                  <Text style={styles.eventTitle}>{event.groom_name} &amp; {event.bride_name}</Text>
+                  <Text style={styles.eventTitle}>{event.name || `${event.groom_name} & ${event.bride_name}`}</Text>
                   <Text style={styles.eventStatus}>{event.status}</Text>
                 </View>
+                <Text style={styles.eventCoupleNames}>{event.couple_names || `${event.groom_name} & ${event.bride_name}`}</Text>
                 <Text style={styles.eventMeta}>{event.event_date} · {event.event_time.slice(0, 5)}</Text>
-                <Text style={styles.eventVenue}>{event.venue_name}</Text>
+                <Text style={styles.eventVenue}>{event.venue || event.venue_name}</Text>
               </Pressable>
             ))}
           </View>
@@ -317,6 +323,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     fontWeight: "700",
+  },
+  eventCoupleNames: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 5,
   },
   eventStatus: {
     color: colors.accent,
