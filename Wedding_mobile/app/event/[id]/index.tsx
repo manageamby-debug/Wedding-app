@@ -1,7 +1,7 @@
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import api from "../../../src/services/api";
 import { colors } from "../../../src/constants/theme";
 
@@ -16,28 +16,48 @@ type EventDetailsData = {
   status: "draft" | "published" | "completed" | "cancelled";
 };
 
+type EventGuest = {
+  id: number;
+  event_id: number;
+  full_name: string;
+  guest_code: string;
+  check_in_status: string;
+  phone: string | null;
+  email: string | null;
+};
+
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const [event, setEvent] = useState<EventDetailsData | null>(null);
+  const [guests, setGuests] = useState<EventGuest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGuestsLoading, setIsGuestsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [retryCount, setRetryCount] = useState(0);
+  const [guestsError, setGuestsError] = useState("");
+  const [eventRetryCount, setEventRetryCount] = useState(0);
+  const [guestsRetryCount, setGuestsRetryCount] = useState(0);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let isActive = true;
+    setIsLoading(true);
+    setIsGuestsLoading(true);
+    setErrorMessage("");
+    setGuestsError("");
+
+    if (!eventId || !/^\d+$/.test(eventId)) {
+      setEvent(null);
+      setGuests([]);
+      setErrorMessage("This event link is invalid.");
+      setGuestsError("This event link is invalid.");
+      setIsLoading(false);
+      setIsGuestsLoading(false);
+      return () => {
+        isActive = false;
+      };
+    }
 
     async function loadEvent() {
-      setIsLoading(true);
-      setErrorMessage("");
-
-      if (!eventId || !/^\d+$/.test(eventId)) {
-        setEvent(null);
-        setErrorMessage("This event link is invalid.");
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const response = await api.get<EventDetailsData>(`/events/${eventId}`);
 
@@ -64,12 +84,40 @@ export default function EventDetailsScreen() {
       }
     }
 
+    async function loadGuests() {
+      try {
+        const response = await api.get<EventGuest[]>(`/events/${eventId}/guest`);
+
+        if (!isActive) return;
+
+        console.log("Event guests:", response.data);
+        setGuests(response.data);
+      } catch (requestError) {
+        if (!isActive) return;
+
+        const message = axios.isAxiosError(requestError)
+          ? requestError.response?.status === 404
+            ? "Event not found or you do not have access to it."
+            : requestError.message
+          : requestError instanceof Error
+            ? requestError.message
+            : "Unknown error";
+
+        console.error("Failed to load event guests:", message);
+        setGuests([]);
+        setGuestsError("Could not load guests. Check your connection and try again.");
+      } finally {
+        if (isActive) setIsGuestsLoading(false);
+      }
+    }
+
     void loadEvent();
+    void loadGuests();
 
     return () => {
       isActive = false;
     };
-  }, [eventId, retryCount]);
+  }, [eventId, eventRetryCount, guestsRetryCount]));
 
   return (
     <View style={styles.container}>
@@ -93,7 +141,7 @@ export default function EventDetailsScreen() {
               <Text accessibilityLiveRegion="polite" style={styles.error}>{errorMessage}</Text>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setRetryCount((count) => count + 1)}
+                onPress={() => setEventRetryCount((count) => count + 1)}
                 style={styles.retryButton}
               >
                 <Text style={styles.retryText}>Try again</Text>
@@ -117,13 +165,53 @@ export default function EventDetailsScreen() {
                 <DetailRow label="Address" value={event.venue_address} last />
               </View>
 
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push(`/event/${event.id}/add-guest`)}
-                style={styles.addGuestButton}
-              >
-                <Text style={styles.addGuestButtonText}>+  Add Guest</Text>
-              </Pressable>
+              <View style={styles.guestsSection}>
+                <View style={styles.guestsHeading}>
+                  <Text style={styles.guestsTitle}>Guests</Text>
+                  {!isGuestsLoading && !guestsError ? (
+                    <Text style={styles.guestCount}>{guests.length}</Text>
+                  ) : null}
+                </View>
+
+                <Pressable
+                  accessibilityHint="Opens the form to add a guest to this event"
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/event/${event.id}/add-guest`)}
+                  style={styles.addGuestButton}
+                >
+                  <Text style={styles.addGuestButtonText}>+  Add Guest</Text>
+                </Pressable>
+
+                {isGuestsLoading ? <Text style={styles.message}>Loading guests…</Text> : null}
+
+                {!isGuestsLoading && guestsError ? (
+                  <View>
+                    <Text accessibilityLiveRegion="polite" style={styles.error}>{guestsError}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setGuestsRetryCount((count) => count + 1)}
+                      style={styles.retryButton}
+                    >
+                      <Text style={styles.retryText}>Try again</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                {!isGuestsLoading && !guestsError && guests.length === 0 ? (
+                  <Text style={styles.emptyState}>No guests added yet. Add the first guest to get started.</Text>
+                ) : null}
+
+                {guests.map((guest) => (
+                  <View key={guest.id} style={styles.guestCard}>
+                    <View style={styles.guestHeading}>
+                      <Text style={styles.guestName}>{guest.full_name}</Text>
+                      <Text style={styles.guestStatus}>{guest.check_in_status.replaceAll("_", " ")}</Text>
+                    </View>
+                    <Text style={styles.guestContact}>{guest.phone || "No phone provided"}</Text>
+                    {guest.email ? <Text style={styles.guestContact}>{guest.email}</Text> : null}
+                  </View>
+                ))}
+              </View>
             </>
           ) : null}
         </View>
@@ -161,6 +249,16 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 14, lineHeight: 21 },
   retryButton: { alignSelf: "flex-start", marginTop: 16, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, backgroundColor: colors.accentSoft },
   retryText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
-  addGuestButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 22, borderRadius: 11, backgroundColor: colors.accent },
+  addGuestButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, marginBottom: 10, borderRadius: 11, backgroundColor: colors.accent },
   addGuestButtonText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
+  guestsSection: { marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border },
+  guestsHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  guestsTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  guestCount: { overflow: "hidden", borderRadius: 20, backgroundColor: colors.accentSoft, color: colors.accent, paddingHorizontal: 10, paddingVertical: 4, fontSize: 12, fontWeight: "700" },
+  emptyState: { color: colors.textMuted, fontSize: 13, lineHeight: 20, paddingVertical: 8 },
+  guestCard: { marginTop: 10, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
+  guestHeading: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
+  guestName: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "700" },
+  guestStatus: { color: colors.accent, fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
+  guestContact: { color: colors.textMuted, fontSize: 12, marginTop: 7 },
 });
