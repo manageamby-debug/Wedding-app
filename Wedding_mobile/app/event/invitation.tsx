@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import api from "../../src/services/api";
+import InvitationCode from "../../src/components/InvitationCode";
 import { colors } from "../../src/constants/theme";
 
 type ApiErrorResponse = {
@@ -131,8 +132,8 @@ export default function Invitation() {
             <Text style={styles.resultValue}>{invitation.id}</Text>
             <Text style={styles.label}>GUEST CODE</Text>
             <Text style={styles.resultValue}>{guestCode ?? "—"}</Text>
-            <Text style={styles.label}>INVITATION CODE</Text>
-            <Text style={styles.resultValue}>{invitation.invitation_code}</Text>
+            <Text style={styles.label}>INVITATION PASS</Text>
+            <InvitationCode code={invitation.invitation_code} />
             <Text style={styles.label}>INVITATION LINK</Text>
             <Text selectable style={styles.link}>{inviteLink}</Text>
             {shareError ? <Text accessibilityLiveRegion="polite" style={styles.shareError}>{shareError}</Text> : null}

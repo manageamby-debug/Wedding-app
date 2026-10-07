@@ -1,21 +1,31 @@
 from datetime import datetime
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
 from app.models.guest import Guest
+from app.models.invitation import Invitation
 from app.models.rsvp import RSVP
 
 
 def _get_guest(db: Session, event_id: int, guest_code: str, user_id: int):
-    """Guest of one of the user's own events, or None."""
+    """Guest of one of the user's own events, or None.
+
+    The code can be the guest's own code or the code of their invitation
+    (the one inside the invitation's QR code).
+    """
     return (
         db.query(Guest)
         .join(Event, Guest.event_id == Event.id)
+        .outerjoin(Invitation, Invitation.guest_id == Guest.id)
         .filter(
             Guest.event_id == event_id,
-            Guest.guest_code == guest_code,
             Event.user_id == user_id,
+            or_(
+                Guest.guest_code == guest_code,
+                Invitation.invitation_code == guest_code,
+            ),
         )
         .first()
     )

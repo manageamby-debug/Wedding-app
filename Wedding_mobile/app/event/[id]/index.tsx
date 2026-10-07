@@ -1,6 +1,6 @@
 import axios from "axios";
-import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useState, type ReactNode } from "react";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import api from "../../../src/services/api";
 import { colors } from "../../../src/constants/theme";
@@ -32,7 +32,8 @@ type EventContribution = {
   guest_name: string;
   amount: number | string;
   payment_method: string;
-  payment_status: string;
+  payment_status?: string | null;
+  status?: string | null;
   transaction_reference: string | null;
   paid_at: string | null;
   rejection_reason: string | null;
@@ -65,6 +66,8 @@ export default function EventDetailsScreen() {
   const [guestsRetryCount, setGuestsRetryCount] = useState(0);
   const [contributionsRetryCount, setContributionsRetryCount] = useState(0);
   const [rsvpsRetryCount, setRsvpsRetryCount] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -219,14 +222,63 @@ export default function EventDetailsScreen() {
     };
   }, [eventId, eventRetryCount, guestsRetryCount, contributionsRetryCount, rsvpsRetryCount]));
 
+  async function performDeleteEvent() {
+    if (isDeleting || !eventId) return;
+
+    setIsDeleting(true);
+    setDeleteError("");
+
+    try {
+      await api.delete(`/events/${eventId}`);
+      console.log("Event deleted");
+      router.replace("/dashboard");
+    } catch (requestError) {
+      const message = axios.isAxiosError(requestError) && !requestError.response
+        ? "Cannot reach the server. Check that the backend is running."
+        : axios.isAxiosError(requestError) && requestError.response?.status === 404
+          ? "Event not found, or you do not have access to it."
+          : "Could not delete this event. Please try again.";
+
+      console.error("Delete event failed:", axios.isAxiosError(requestError) ? requestError.response?.status : requestError);
+      setDeleteError(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  function confirmDeleteEvent() {
+    const message = "This will permanently delete the event together with all its guests, RSVPs and contributions. This cannot be undone.";
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Delete Event\n\n${message}`)) void performDeleteEvent();
+      return;
+    }
+
+    Alert.alert("Delete Event", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => void performDeleteEvent() },
+    ]);
+  }
+
   const totalContributions = contributions.reduce((total, contribution) => {
+    const amount = Number(contribution.amount);
+    return total + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+  const paidContributions = contributions.filter(
+    (contribution) => getContributionStatus(contribution) === "paid",
+  );
+  const totalPaid = paidContributions.reduce((total, contribution) => {
     const amount = Number(contribution.amount);
     return total + (Number.isFinite(amount) ? amount : 0);
   }, 0);
   const acceptedRSVPs = rsvps.filter((rsvp) => rsvp.status === "attending").length;
   const declinedRSVPs = rsvps.filter((rsvp) => rsvp.status === "not_attending").length;
-  const pendingRSVPs = Math.max(0, guests.length - acceptedRSVPs - declinedRSVPs);
+  const maybeRSVPs = rsvps.filter((rsvp) => rsvp.status === "maybe").length;
+  const respondedGuestCount = new Set(rsvps.map((rsvp) => rsvp.guest_id)).size;
+  const pendingRSVPs = Math.max(0, guests.length - respondedGuestCount);
   const checkedInGuests = guests.filter((guest) => guest.check_in_status === "checked_in").length;
+  const checkInRate = guests.length ? Math.round((checkedInGuests / guests.length) * 100) : 0;
+  const rsvpResponseRate = guests.length ? Math.round((respondedGuestCount / guests.length) * 100) : 0;
 
   return (
     <View style={styles.container}>
@@ -274,63 +326,121 @@ export default function EventDetailsScreen() {
                 <DetailRow label="Address" value={event.venue_address} last />
               </View>
 
-              <View style={styles.summaryGrid}>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Total Contributions</Text>
-                  <Text style={styles.summaryValue}>
-                    {isContributionsLoading || contributionsError ? "—" : formatTsh(totalContributions)}
-                  </Text>
-                  <Text style={styles.summaryHint}>Includes pending and received amounts</Text>
+              <Pressable
+                accessibilityHint="Opens the form to edit this event's details"
+                accessibilityRole="button"
+                onPress={() => router.push(`/event/edit-event?id=${event.id}`)}
+                style={styles.editEventButton}
+              >
+                <Text style={styles.guestCheckInButtonText}>Edit Event</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityHint="Asks for confirmation, then permanently deletes this event"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isDeleting }}
+                disabled={isDeleting}
+                onPress={confirmDeleteEvent}
+                style={[styles.deleteEventButton, isDeleting && styles.deleteEventButtonDisabled]}
+              >
+                <Text style={styles.deleteEventButtonText}>{isDeleting ? "Deleting event…" : "Delete Event"}</Text>
+              </Pressable>
+              {deleteError ? (
+                <Text accessibilityLiveRegion="polite" style={[styles.error, { marginTop: 10 }]}>{deleteError}</Text>
+              ) : null}
+
+              <View style={styles.summaryPanel}>
+                <View style={styles.summaryHeader}>
+                  <View style={styles.summaryHeaderCopy}>
+                    <Text style={styles.summaryTitle}>Event Summary</Text>
+                    <Text style={styles.summarySubtitle}>A clear view of attendance and contributions</Text>
+                  </View>
+                  <View style={styles.liveBadge}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveBadgeText}>OVERVIEW</Text>
+                  </View>
                 </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Total Guests</Text>
-                  <Text style={styles.summaryValue}>
-                    {isGuestsLoading || guestsError ? "—" : guests.length}
-                  </Text>
-                  <Text style={styles.summaryHint}>On this guest list</Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Checked In</Text>
-                  <Text style={styles.summaryValue}>
-                    {isGuestsLoading || guestsError ? "—" : checkedInGuests}
-                  </Text>
-                  <Text style={styles.summaryHint}>Guests who have arrived</Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Not Checked In</Text>
-                  <Text style={styles.summaryValue}>
-                    {isGuestsLoading || guestsError ? "—" : guests.length - checkedInGuests}
-                  </Text>
-                  <Text style={styles.summaryHint}>Still expected</Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Total RSVPs</Text>
-                  <Text style={styles.summaryValue}>
-                    {isRsvpsLoading || rsvpsError ? "—" : rsvps.length}
-                  </Text>
-                  <Text style={styles.summaryHint}>Guest responses received</Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Accepted</Text>
-                  <Text style={styles.summaryValue}>
-                    {isRsvpsLoading || rsvpsError ? "—" : acceptedRSVPs}
-                  </Text>
-                  <Text style={styles.summaryHint}>Attending</Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Declined</Text>
-                  <Text style={styles.summaryValue}>
-                    {isRsvpsLoading || rsvpsError ? "—" : declinedRSVPs}
-                  </Text>
-                  <Text style={styles.summaryHint}>Not attending</Text>
-                </View>
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryLabel}>Pending</Text>
-                  <Text style={styles.summaryValue}>
-                    {isGuestsLoading || guestsError || isRsvpsLoading || rsvpsError ? "—" : pendingRSVPs}
-                  </Text>
-                  <Text style={styles.summaryHint}>Includes Maybe and no response</Text>
-                </View>
+
+                <SummaryGroup title="GUESTS & ATTENDANCE">
+                  <SummaryMetric
+                    label="Guests"
+                    value={isGuestsLoading || guestsError ? "—" : String(guests.length)}
+                    hint="On the guest list"
+                    tone="accent"
+                  />
+                  <SummaryMetric
+                    label="Checked in"
+                    value={isGuestsLoading || guestsError ? "—" : String(checkedInGuests)}
+                    hint="Arrived at the event"
+                    tone="success"
+                  />
+                  <SummaryMetric
+                    label="Not checked in"
+                    value={isGuestsLoading || guestsError ? "—" : String(Math.max(0, guests.length - checkedInGuests))}
+                    hint="Guests still expected"
+                    tone="info"
+                  />
+                  <SummaryMetric
+                    label="Arrival rate"
+                    value={isGuestsLoading || guestsError ? "—" : `${checkInRate}%`}
+                    hint="Of all invited guests"
+                    tone="accent"
+                  />
+                </SummaryGroup>
+
+                <SummaryGroup title="RSVP RESPONSES">
+                  <SummaryMetric
+                    label="Accepted"
+                    value={isRsvpsLoading || rsvpsError ? "—" : String(acceptedRSVPs)}
+                    hint="Attending"
+                    tone="success"
+                  />
+                  <SummaryMetric
+                    label="Declined"
+                    value={isRsvpsLoading || rsvpsError ? "—" : String(declinedRSVPs)}
+                    hint="Not attending"
+                    tone="danger"
+                  />
+                  <SummaryMetric
+                    label="Maybe"
+                    value={isRsvpsLoading || rsvpsError ? "—" : String(maybeRSVPs)}
+                    hint="Undecided"
+                    tone="info"
+                  />
+                  <SummaryMetric
+                    label="No response"
+                    value={isGuestsLoading || guestsError || isRsvpsLoading || rsvpsError ? "—" : String(pendingRSVPs)}
+                    hint="Awaiting a reply"
+                    tone="accent"
+                  />
+                  <SummaryMetric
+                    label="Responses received"
+                    value={isRsvpsLoading || rsvpsError ? "—" : String(respondedGuestCount)}
+                    hint="All RSVP statuses"
+                    tone="accent"
+                  />
+                  <SummaryMetric
+                    label="Response rate"
+                    value={isGuestsLoading || guestsError || isRsvpsLoading || rsvpsError ? "—" : `${rsvpResponseRate}%`}
+                    hint="Of all invited guests"
+                    tone="info"
+                  />
+                </SummaryGroup>
+
+                <SummaryGroup title="CONTRIBUTIONS">
+                  <SummaryMetric
+                    label="Total recorded"
+                    value={isContributionsLoading || contributionsError ? "—" : formatTsh(totalContributions)}
+                    hint="Across all payment statuses"
+                    tone="accent"
+                  />
+                  <SummaryMetric
+                    label="Total paid"
+                    value={isContributionsLoading || contributionsError ? "—" : formatTsh(totalPaid)}
+                    hint="Confirmed as paid"
+                    tone="success"
+                  />
+                </SummaryGroup>
               </View>
 
               <View style={styles.guestsSection}>
@@ -370,6 +480,15 @@ export default function EventDetailsScreen() {
                   style={styles.guestCheckInButton}
                 >
                   <Text style={styles.guestCheckInButtonText}>Guest Check-in</Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityHint="Opens the camera to scan a guest's QR code and check them in"
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/event/scan?id=${event.id}`)}
+                  style={styles.guestCheckInButton}
+                >
+                  <Text style={styles.guestCheckInButtonText}>Scan QR Code</Text>
                 </Pressable>
 
                 {isGuestsLoading ? <Text style={styles.message}>Loading guests…</Text> : null}
@@ -414,6 +533,14 @@ export default function EventDetailsScreen() {
                       <Text style={styles.rsvpStatus}>
                         Check-in: {guest.check_in_status === "checked_in" ? "Checked in" : "Not checked in"}
                       </Text>
+                      <Pressable
+                        accessibilityHint={`Opens the details screen for ${guest.full_name}`}
+                        accessibilityRole="button"
+                        onPress={() => router.push(`/event/guest/${guest.id}?eventId=${event.id}`)}
+                        style={styles.addContributionButton}
+                      >
+                        <Text style={styles.addContributionButtonText}>View Guest</Text>
+                      </Pressable>
                       <Pressable
                         accessibilityHint={`Opens the contribution form for ${guest.full_name}`}
                         accessibilityRole="button"
@@ -496,23 +623,29 @@ export default function EventDetailsScreen() {
                   <Text style={styles.emptyState}>No contributions recorded yet.</Text>
                 ) : null}
 
-                {contributions.map((contribution) => (
-                  <View key={contribution.id} style={styles.contributionCard}>
-                    <View style={styles.guestHeading}>
-                      <Text style={styles.guestName}>{contribution.guest_name}</Text>
-                      <Text style={styles.guestStatus}>
-                        {contribution.payment_status.replaceAll("_", " ")}
+                {contributions.map((contribution) => {
+                  const paymentStatus = getContributionStatus(contribution);
+
+                  return (
+                    <View key={contribution.id} style={styles.contributionCard}>
+                      <View style={styles.guestHeading}>
+                        <Text style={styles.guestName}>{contribution.guest_name}</Text>
+                        <View style={[styles.paymentStatusBadge, getPaymentStatusStyle(paymentStatus)]}>
+                          <Text style={[styles.paymentStatusText, getPaymentStatusTextStyle(paymentStatus)]}>
+                            {paymentStatus.replaceAll("_", " ")}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.contributionAmount}>Amount: {formatTsh(contribution.amount)}</Text>
+                      <Text style={styles.guestContact}>
+                        {contribution.payment_method.replaceAll("_", " ")}
                       </Text>
+                      {contribution.transaction_reference ? (
+                        <Text style={styles.guestContact}>Ref: {contribution.transaction_reference}</Text>
+                      ) : null}
                     </View>
-                    <Text style={styles.contributionAmount}>{formatTsh(contribution.amount)}</Text>
-                    <Text style={styles.guestContact}>
-                      {contribution.payment_method.replaceAll("_", " ")}
-                    </Text>
-                    {contribution.transaction_reference ? (
-                      <Text style={styles.guestContact}>Ref: {contribution.transaction_reference}</Text>
-                    ) : null}
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </>
           ) : null}
@@ -531,6 +664,61 @@ function DetailRow({ label, value, last = false }: { label: string; value: strin
   );
 }
 
+type SummaryTone = "accent" | "success" | "danger" | "info";
+
+function SummaryGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.summaryGroup}>
+      <Text style={styles.summaryGroupTitle}>{title}</Text>
+      <View style={styles.summaryGrid}>{children}</View>
+    </View>
+  );
+}
+
+function SummaryMetric({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone: SummaryTone;
+}) {
+  return (
+    <View style={styles.summaryMetric}>
+      <View style={[styles.summaryMetricAccent, { backgroundColor: getSummaryToneColor(tone) }]} />
+      <Text style={styles.summaryMetricLabel}>{label}</Text>
+      <Text style={[styles.summaryMetricValue, { color: getSummaryToneColor(tone) }]}>{value}</Text>
+      <Text style={styles.summaryMetricHint}>{hint}</Text>
+    </View>
+  );
+}
+
+function getSummaryToneColor(tone: SummaryTone): string {
+  if (tone === "success") return colors.success;
+  if (tone === "danger") return colors.danger;
+  if (tone === "info") return colors.info;
+  return colors.accent;
+}
+
+function getContributionStatus(contribution: EventContribution): string {
+  return (contribution.payment_status ?? contribution.status ?? "").trim().toLowerCase() || "pending";
+}
+
+function getPaymentStatusStyle(status: string) {
+  if (status === "paid" || status === "confirmed") return styles.paymentPaidBadge;
+  if (status === "failed" || status === "rejected") return styles.paymentFailedBadge;
+  return styles.paymentPendingBadge;
+}
+
+function getPaymentStatusTextStyle(status: string) {
+  if (status === "paid" || status === "confirmed") return styles.paymentPaidText;
+  if (status === "failed" || status === "rejected") return styles.paymentFailedText;
+  return styles.paymentPendingText;
+}
+
 function formatTsh(amount: number | string): string {
   const numericAmount = Number(amount);
   return Number.isFinite(numericAmount)
@@ -540,7 +728,7 @@ function formatTsh(amount: number | string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 24 },
   card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
@@ -550,11 +738,26 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderTopWidth: 1, borderTopColor: colors.border },
   status: { color: colors.accent, fontSize: 12, fontWeight: "700", textTransform: "capitalize" },
   details: { borderTopWidth: 1, borderTopColor: colors.border },
-  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 18 },
-  summaryCard: { flex: 1, flexBasis: "45%", minHeight: 112, justifyContent: "center", padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.card },
-  summaryLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "600" },
-  summaryValue: { color: colors.accent, fontSize: 19, fontWeight: "700", marginTop: 8 },
-  summaryHint: { color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 5 },
+  editEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 16, borderWidth: 1, borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
+  deleteEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: "#351F1D" },
+  deleteEventButtonDisabled: { opacity: 0.55 },
+  deleteEventButtonText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
+  summaryPanel: { marginTop: 24, padding: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface },
+  summaryHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  summaryHeaderCopy: { flex: 1 },
+  summaryTitle: { color: colors.text, fontSize: 20, fontWeight: "700", letterSpacing: 0.1 },
+  summarySubtitle: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 4 },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.accentSoft },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  liveBadgeText: { color: colors.accent, fontSize: 9, fontWeight: "700", letterSpacing: 0.7 },
+  summaryGroup: { marginTop: 18 },
+  summaryGroupTitle: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.1, marginBottom: 9 },
+  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  summaryMetric: { position: "relative", flexGrow: 1, flexBasis: "45%", minHeight: 108, justifyContent: "center", overflow: "hidden", paddingVertical: 13, paddingLeft: 16, paddingRight: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.card },
+  summaryMetricAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
+  summaryMetricLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "600" },
+  summaryMetricValue: { fontSize: 20, fontWeight: "700", marginTop: 8 },
+  summaryMetricHint: { color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 4 },
   detailRow: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
   lastRow: { borderBottomWidth: 0 },
   label: { color: colors.textMuted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
@@ -583,4 +786,12 @@ const styles = StyleSheet.create({
   contributionsSection: { marginTop: 26, paddingTop: 22, borderTopWidth: 1, borderTopColor: colors.border },
   contributionCard: { marginTop: 10, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
   contributionAmount: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 9 },
+  paymentStatusBadge: { alignSelf: "flex-start", borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
+  paymentPendingBadge: { backgroundColor: colors.accentSoft },
+  paymentPaidBadge: { backgroundColor: "#153126" },
+  paymentFailedBadge: { backgroundColor: "#351F1D" },
+  paymentStatusText: { fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
+  paymentPendingText: { color: colors.accent },
+  paymentPaidText: { color: colors.success },
+  paymentFailedText: { color: colors.danger },
 });

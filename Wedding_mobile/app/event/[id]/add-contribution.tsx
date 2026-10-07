@@ -42,9 +42,14 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
 ];
 
 export default function AddContributionScreen() {
-  const { id, guestId } = useLocalSearchParams<{ id: string; guestId: string }>();
+  const { id, guestId, from } = useLocalSearchParams<{ id: string; guestId: string; from?: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const currentGuestId = Array.isArray(guestId) ? guestId[0] : guestId;
+  const cameFromGuest = (Array.isArray(from) ? from[0] : from) === "guest";
+  // Return to Guest Details when that is where the organizer came from.
+  const returnPath = cameFromGuest && currentGuestId
+    ? `/event/guest/${currentGuestId}?eventId=${eventId}`
+    : `/event/${eventId}`;
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [transactionReference, setTransactionReference] = useState("");
@@ -89,7 +94,7 @@ export default function AddContributionScreen() {
       const response = await api.post<ContributionResponse>(endpoint, payload);
 
       console.log("Contribution created:", response.data);
-      router.replace(`/event/${eventId}`);
+      router.replace(returnPath);
     } catch (requestError) {
       const isApiError = axios.isAxiosError<ApiErrorResponse>(requestError);
       const responseData = isApiError ? requestError.response?.data : undefined;
@@ -132,10 +137,10 @@ export default function AddContributionScreen() {
         <View style={styles.card}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.replace(`/event/${eventId}`)}
+            onPress={() => router.replace(returnPath)}
             style={styles.backButton}
           >
-            <Text style={styles.backText}>‹  Event Details</Text>
+            <Text style={styles.backText}>{cameFromGuest ? "‹  Guest Details" : "‹  Event Details"}</Text>
           </Pressable>
 
           <Text style={styles.eyebrow}>EVENT · #{eventId ?? "—"}</Text>

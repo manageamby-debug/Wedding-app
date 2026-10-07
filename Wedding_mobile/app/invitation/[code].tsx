@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import api from "../../src/services/api";
+import InvitationCode from "../../src/components/InvitationCode";
 import { colors } from "../../src/constants/theme";
 
 type ApiErrorResponse = {
@@ -38,6 +39,12 @@ const OPTIONS: { value: RSVPStatus; label: string }[] = [
   { value: "not_attending", label: "Decline" },
   { value: "maybe", label: "Maybe" },
 ];
+
+function publicRSVPStatus(status: RSVPStatus): string {
+  if (status === "attending") return "accepted";
+  if (status === "not_attending") return "declined";
+  return "maybe";
+}
 
 function readError(requestError: unknown, fallback: string): string {
   const isApiError = axios.isAxiosError<ApiErrorResponse>(requestError);
@@ -172,6 +179,12 @@ export default function PublicInvitation() {
               <DetailRow label="Address" value={invitation.venue_address} last />
             </View>
 
+            <View style={styles.pass}>
+              <Text style={styles.label}>Your Entry Pass</Text>
+              <Text style={styles.passHint}>Show this at the entrance to be checked in.</Text>
+              <InvitationCode code={invitation.invitation_code} />
+            </View>
+
             <Text style={styles.question}>Will you attend?</Text>
             <View style={styles.options}>
               {OPTIONS.map((option) => (
@@ -190,10 +203,13 @@ export default function PublicInvitation() {
               ))}
             </View>
 
+            <Text style={styles.selectedStatus}>
+              Selected: {rsvpStatus ? publicRSVPStatus(rsvpStatus) : "None"}
+            </Text>
             {rsvpError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{rsvpError}</Text> : null}
-            {submittedLabel ? (
+            {submittedStatus ? (
               <Text accessibilityLiveRegion="polite" style={styles.success}>
-                RSVP submitted ✓ ({submittedLabel})
+                Your RSVP: {publicRSVPStatus(submittedStatus)}
               </Text>
             ) : null}
 
@@ -236,11 +252,14 @@ const styles = StyleSheet.create({
   label: { color: colors.textMuted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   value: { flexShrink: 1, color: colors.text, fontSize: 14, textAlign: "right" },
   question: { color: colors.text, fontSize: 16, fontWeight: "700", marginTop: 22, marginBottom: 12 },
+  pass: { marginTop: 22 },
+  passHint: { color: colors.textMuted, fontSize: 12, marginTop: 6, marginBottom: 12 },
   options: { gap: 9, marginBottom: 16 },
   option: { minHeight: 46, justifyContent: "center", paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card },
   selectedOption: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   optionText: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
   selectedOptionText: { color: colors.accent },
+  selectedStatus: { color: colors.textMuted, fontSize: 13, marginBottom: 12 },
   message: { color: colors.textMuted, fontSize: 14 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 12 },
   success: { color: colors.accent, fontSize: 14, fontWeight: "700", marginBottom: 12 },

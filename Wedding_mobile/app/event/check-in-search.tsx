@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import api from "../../src/services/api";
@@ -30,8 +30,9 @@ type CheckInResponse = {
 };
 
 export default function CheckInSearch() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, code: scannedParam } = useLocalSearchParams<{ id: string; code?: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
+  const scannedCode = Array.isArray(scannedParam) ? scannedParam[0] : scannedParam;
   const router = useRouter();
 
   const [guestCode, setGuestCode] = useState("");
@@ -41,10 +42,10 @@ export default function CheckInSearch() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  async function searchGuest() {
+  async function searchGuest(codeOverride?: string) {
     if (loading) return;
 
-    const code = guestCode.trim();
+    const code = (typeof codeOverride === "string" ? codeOverride : guestCode).trim();
 
     if (!eventId || !/^\d+$/.test(eventId) || Number(eventId) < 1) {
       setErrorMessage("The event link is invalid. Return to Event Details and try again.");
@@ -88,6 +89,15 @@ export default function CheckInSearch() {
       setLoading(false);
     }
   }
+
+  // Arriving from the QR scanner: fill in the scanned code and look the guest up.
+  useEffect(() => {
+    if (!scannedCode) return;
+
+    setGuestCode(scannedCode);
+    void searchGuest(scannedCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scannedCode]);
 
   async function checkInGuest() {
     if (checkingIn || !guest) return;
@@ -144,14 +154,14 @@ export default function CheckInSearch() {
         </Pressable>
         <Text style={styles.eyebrow}>EVENT · #{eventId ?? "—"}</Text>
         <Text style={styles.title}>Guest Check-in</Text>
-        <Text style={styles.subtitle}>Find a guest by their guest code.</Text>
-        <Text style={styles.label}>GUEST CODE</Text>
+        <Text style={styles.subtitle}>Find a guest by guest code or invitation code, or scan their QR code.</Text>
+        <Text style={styles.label}>CODE</Text>
         <TextInput
           autoCapitalize="characters"
           autoCorrect={false}
           onChangeText={setGuestCode}
-          onSubmitEditing={searchGuest}
-          placeholder="Enter Guest Code"
+          onSubmitEditing={() => searchGuest()}
+          placeholder="Guest or invitation code"
           placeholderTextColor={colors.textMuted}
           returnKeyType="search"
           style={styles.input}
@@ -162,10 +172,17 @@ export default function CheckInSearch() {
           accessibilityRole="button"
           accessibilityState={{ disabled: loading }}
           disabled={loading}
-          onPress={searchGuest}
+          onPress={() => searchGuest()}
           style={({ pressed }) => [styles.submitButton, pressed && styles.pressed, loading && styles.disabledButton]}
         >
           <Text style={styles.submitText}>{loading ? "Searching…" : "Search Guest"}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.replace(`/event/scan?id=${eventId ?? ""}`)}
+          style={styles.scanButton}
+        >
+          <Text style={styles.scanButtonText}>Scan QR Code</Text>
         </Pressable>
 
         {guest ? (
@@ -214,6 +231,8 @@ const styles = StyleSheet.create({
   submitText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
   pressed: { opacity: 0.78 },
   disabledButton: { opacity: 0.55 },
+  scanButton: { minHeight: 50, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
+  scanButtonText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
   result: { marginTop: 20, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
   resultName: { color: colors.text, fontSize: 16, fontWeight: "700" },
   resultLine: { color: colors.textMuted, fontSize: 12, marginTop: 7 },
