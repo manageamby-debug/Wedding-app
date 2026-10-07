@@ -1,7 +1,10 @@
 import axios from "axios";
 import { useCallback, useState, type ReactNode } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Button, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import EmptyState from "../../../components/EmptyState";
+import ErrorState from "../../../components/ErrorState";
+import LoadingState from "../../../components/LoadingState";
 import api from "../../../src/services/api";
 import PaymentSummary from "../../../src/components/PaymentSummary";
 import { colors } from "../../../src/constants/theme";
@@ -19,7 +22,7 @@ type EventDetailsData = {
   venue_address: string | null;
   description: string | null;
   target_contribution: number | string;
-  status: "draft" | "published" | "completed" | "cancelled";
+  status: "draft" | "active" | "published" | "completed" | "cancelled";
 };
 
 type EventGuest = {
@@ -53,11 +56,24 @@ type EventRSVP = {
   status: string;
 };
 
+type GuestFilter =
+  | "all"
+  | "rsvp_accepted"
+  | "rsvp_pending"
+  | "paid"
+  | "payment_pending"
+  | "checked_in"
+  | "not_checked_in";
+type GuestSort = "name_asc" | "not_checked_in";
+
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const [event, setEvent] = useState<EventDetailsData | null>(null);
   const [guests, setGuests] = useState<EventGuest[]>([]);
+  const [guestSearch, setGuestSearch] = useState("");
+  const [guestFilter, setGuestFilter] = useState<GuestFilter>("all");
+  const [guestSort, setGuestSort] = useState<GuestSort>("name_asc");
   const [contributions, setContributions] = useState<EventContribution[]>([]);
   const [rsvps, setRsvps] = useState<EventRSVP[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,6 +90,8 @@ export default function EventDetailsScreen() {
   const [rsvpsRetryCount, setRsvpsRetryCount] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusUpdateError, setStatusUpdateError] = useState("");
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -228,6 +246,12 @@ export default function EventDetailsScreen() {
     };
   }, [eventId, eventRetryCount, guestsRetryCount, contributionsRetryCount, rsvpsRetryCount]));
 
+  function retryGuestLoading() {
+    setGuestsError("");
+    setIsGuestsLoading(true);
+    setGuestsRetryCount((count) => count + 1);
+  }
+
   async function performDeleteEvent() {
     if (isDeleting || !eventId) return;
 
@@ -263,6 +287,58 @@ export default function EventDetailsScreen() {
     Alert.alert("Delete Event", message, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => void performDeleteEvent() },
+    ]);
+  }
+
+  async function updateEventStatus(newStatus: string) {
+    if (isUpdatingStatus || !eventId || !event) return;
+
+    setIsUpdatingStatus(true);
+    setStatusUpdateError("");
+
+    try {
+      // Backend PUT /events/{id} requires event_date — send current value alongside new status.
+      const response = await api.put<EventDetailsData>(`/events/${eventId}`, {
+        event_date: event.event_date,
+        status: newStatus,
+      });
+      setEvent(response.data);
+      console.log("Event status updated to:", newStatus);
+    } catch (requestError) {
+      const message = axios.isAxiosError(requestError) && !requestError.response
+        ? "Cannot reach the server. Check that the backend is running."
+        : axios.isAxiosError(requestError) && requestError.response?.status === 404
+          ? "Event not found, or you do not have access to it."
+          : axios.isAxiosError(requestError) && requestError.response?.status === 422
+            ? `Status "${newStatus}" was rejected by the server. Check backend allowed values.`
+            : "Could not update event status. Please try again.";
+
+      console.error("Update status failed:", axios.isAxiosError(requestError) ? requestError.response?.data : requestError);
+      setStatusUpdateError(message);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  }
+
+  function confirmStatusUpdate(
+    newStatus: string,
+    title: string,
+    message: string,
+    confirmLabel: string,
+    isDestructive = false,
+  ) {
+    if (Platform.OS === "web") {
+      if (window.confirm(`${title}\n\n${message}`)) void updateEventStatus(newStatus);
+      return;
+    }
+
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: confirmLabel,
+        style: isDestructive ? "destructive" : "default",
+        onPress: () => void updateEventStatus(newStatus),
+      },
     ]);
   }
 
@@ -314,6 +390,9 @@ export default function EventDetailsScreen() {
   }
 
   const acceptedRSVPs = rsvps.filter((rsvp) => rsvp.status === "attending").length;
+  const eventLocked =
+    event?.status === "completed" ||
+    event?.status === "cancelled";
   const declinedRSVPs = rsvps.filter((rsvp) => rsvp.status === "not_attending").length;
   const maybeRSVPs = rsvps.filter((rsvp) => rsvp.status === "maybe").length;
   const respondedGuestCount = new Set(rsvps.map((rsvp) => rsvp.guest_id)).size;
@@ -321,6 +400,47 @@ export default function EventDetailsScreen() {
   const checkedInGuests = guests.filter((guest) => guest.check_in_status === "checked_in").length;
   const checkInRate = guests.length ? Math.round((checkedInGuests / guests.length) * 100) : 0;
   const rsvpResponseRate = guests.length ? Math.round((respondedGuestCount / guests.length) * 100) : 0;
+  const guestSearchQuery = guestSearch.trim().toLowerCase();
+  const filteredGuests = guests.filter((guest) => {
+    if (!guestSearchQuery) return true;
+
+    return (
+      guest.full_name.toLowerCase().includes(guestSearchQuery) ||
+      guest.guest_code.toLowerCase().includes(guestSearchQuery) ||
+      (guest.phone ?? "").toLowerCase().includes(guestSearchQuery)
+    );
+  });
+  const finalGuests = filteredGuests.filter((guest) => {
+    if (guestFilter === "all") return true;
+
+    const guestRsvp = rsvps.find(
+      (item) => Number(item.guest_id) === Number(guest.id),
+    );
+    const payment = getGuestPaymentStatus(guest.id);
+
+    if (guestFilter === "rsvp_accepted") {
+      return guestRsvp?.status === "attending";
+    }
+    if (guestFilter === "rsvp_pending") {
+      return !guestRsvp || guestRsvp.status === "pending";
+    }
+    if (guestFilter === "paid") return payment.status === "paid";
+    if (guestFilter === "payment_pending") return payment.status === "pending";
+    if (guestFilter === "checked_in") return guest.check_in_status === "checked_in";
+    if (guestFilter === "not_checked_in") return guest.check_in_status !== "checked_in";
+
+    return true;
+  });
+  const sortedGuests = [...finalGuests].sort((a, b) => {
+    if (guestSort === "not_checked_in") {
+      const aChecked = a.check_in_status === "checked_in";
+      const bChecked = b.check_in_status === "checked_in";
+
+      if (aChecked !== bChecked) return aChecked ? 1 : -1;
+    }
+
+    return a.full_name.localeCompare(b.full_name);
+  });
 
   return (
     <View style={styles.container}>
@@ -358,7 +478,11 @@ export default function EventDetailsScreen() {
               <Text style={styles.coupleNames}>{event.couple_names || `${event.groom_name} & ${event.bride_name}`}</Text>
               <View style={styles.statusRow}>
                 <Text style={styles.label}>STATUS</Text>
-                <Text style={styles.status}>{event.status}</Text>
+                <View style={[styles.statusBadge, getStatusBadgeStyle(event.status)]}>
+                  <Text style={[styles.statusBadgeText, getStatusTextStyle(event.status)]}>
+                    {getStatusLabel(event.status)}
+                  </Text>
+                </View>
               </View>
 
               <View style={styles.details}>
@@ -379,14 +503,16 @@ export default function EventDetailsScreen() {
                 </View>
               ) : null}
 
-              <Pressable
-                accessibilityHint="Opens the form to edit this event's details"
-                accessibilityRole="button"
-                onPress={() => router.push(`/event/edit-event?id=${event.id}`)}
-                style={styles.editEventButton}
-              >
-                <Text style={styles.guestCheckInButtonText}>Edit Event</Text>
-              </Pressable>
+              {!eventLocked && (
+                <Pressable
+                  accessibilityHint="Opens the form to edit this event's details"
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/event/edit-event?id=${event.id}`)}
+                  style={styles.editEventButton}
+                >
+                  <Text style={styles.guestCheckInButtonText}>Edit Event</Text>
+                </Pressable>
+              )}
 
               <Pressable
                 accessibilityHint="Asks for confirmation, then permanently deletes this event"
@@ -398,6 +524,80 @@ export default function EventDetailsScreen() {
               >
                 <Text style={styles.deleteEventButtonText}>{isDeleting ? "Deleting event…" : "Delete Event"}</Text>
               </Pressable>
+              {/* Event Lifecycle Actions */}
+              {event.status === "draft" && (
+                <Pressable
+                  accessibilityHint="Activates this draft event"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isUpdatingStatus }}
+                  disabled={isUpdatingStatus}
+                  onPress={() =>
+                    confirmStatusUpdate(
+                      "active",
+                      "Activate Event",
+                      "Are you sure you want to activate this event?",
+                      "Activate"
+                    )
+                  }
+                  style={[styles.activateEventButton, isUpdatingStatus && styles.buttonDisabled]}
+                >
+                  <Text style={styles.activateEventButtonText}>
+                    {isUpdatingStatus ? "Updating Status…" : "🟢 Activate Event"}
+                  </Text>
+                </Pressable>
+              )}
+
+              {event.status === "active" && (
+                <Pressable
+                  accessibilityHint="Marks this active event as completed"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isUpdatingStatus }}
+                  disabled={isUpdatingStatus}
+                  onPress={() =>
+                    confirmStatusUpdate(
+                      "completed",
+                      "Complete Event",
+                      "Are you sure you want to mark this event as completed?",
+                      "Complete"
+                    )
+                  }
+                  style={[styles.completeEventButton, isUpdatingStatus && styles.buttonDisabled]}
+                >
+                  <Text style={styles.completeEventButtonText}>
+                    {isUpdatingStatus ? "Updating Status…" : "✅ Complete Event"}
+                  </Text>
+                </Pressable>
+              )}
+
+              {(event.status === "draft" || event.status === "active") && (
+                <Pressable
+                  accessibilityHint="Cancels this event"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isUpdatingStatus }}
+                  disabled={isUpdatingStatus}
+                  onPress={() =>
+                    confirmStatusUpdate(
+                      "cancelled",
+                      "Cancel Event",
+                      "Are you sure you want to cancel this event?",
+                      "Yes, Cancel",
+                      true
+                    )
+                  }
+                  style={[styles.cancelEventButton, isUpdatingStatus && styles.buttonDisabled]}
+                >
+                  <Text style={styles.cancelEventButtonText}>
+                    {isUpdatingStatus ? "Updating Status…" : "❌ Cancel Event"}
+                  </Text>
+                </Pressable>
+              )}
+
+              {statusUpdateError ? (
+                <Text accessibilityLiveRegion="polite" style={[styles.error, { marginTop: 10 }]}>
+                  {statusUpdateError}
+                </Text>
+              ) : null}
+
               {deleteError ? (
                 <Text accessibilityLiveRegion="polite" style={[styles.error, { marginTop: 10 }]}>{deleteError}</Text>
               ) : null}
@@ -488,6 +688,54 @@ export default function EventDetailsScreen() {
                 />
               </View>
 
+              {/* ── Quick Actions ── */}
+              <View style={styles.quickActionsSection}>
+                <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+                <View style={styles.quickActionsGrid}>
+                  <Pressable
+                    accessibilityHint="Opens the guest check-in search screen"
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/check-in-search?id=${event.id}`)}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>🔎</Text>
+                    <Text style={styles.quickActionLabel}>Check-in Guest</Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityHint="Opens the pending payments screen"
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/pending-contributions?id=${event.id}`)}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>💰</Text>
+                    <Text style={styles.quickActionLabel}>Manage Payments</Text>
+                  </Pressable>
+
+                  {!eventLocked && (
+                    <Pressable
+                      accessibilityHint="Opens the RSVP management screen"
+                      accessibilityRole="button"
+                      onPress={() => router.push(`/event/rsvp?id=${event.id}`)}
+                      style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                    >
+                      <Text style={styles.quickActionEmoji}>📋</Text>
+                      <Text style={styles.quickActionLabel}>Manage RSVP</Text>
+                    </Pressable>
+                  )}
+
+                  <Pressable
+                    accessibilityHint="Opens the invitations screen"
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/invitation?id=${event.id}`)}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>🎟</Text>
+                    <Text style={styles.quickActionLabel}>Invitations</Text>
+                  </Pressable>
+                </View>
+              </View>
+
               <View style={styles.guestsSection}>
                 <View style={styles.guestsHeading}>
                   <Text style={styles.guestsTitle}>Guests</Text>
@@ -495,6 +743,41 @@ export default function EventDetailsScreen() {
                     <Text style={styles.guestCount}>{guests.length}</Text>
                   ) : null}
                 </View>
+
+                <TextInput
+                  accessibilityLabel="Search guests"
+                  placeholder="Search guest name, code or phone..."
+                  placeholderTextColor={colors.textMuted}
+                  value={guestSearch}
+                  onChangeText={setGuestSearch}
+                  style={styles.guestSearchInput}
+                />
+                {guestSearch.length > 0 ? (
+                  <Button title="Clear Search" onPress={() => setGuestSearch("")} />
+                ) : null}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginBottom: 15 }}
+                >
+                  <Button title="All" onPress={() => setGuestFilter("all")} />
+                  <View style={{ width: 8 }} />
+                  <Button title="RSVP Accepted" onPress={() => setGuestFilter("rsvp_accepted")} />
+                  <View style={{ width: 8 }} />
+                  <Button title="Paid" onPress={() => setGuestFilter("paid")} />
+                  <View style={{ width: 8 }} />
+                  <Button title="Checked In" onPress={() => setGuestFilter("checked_in")} />
+                </ScrollView>
+                <Text style={styles.sortGuestsLabel}>Sort Guests</Text>
+                <View style={styles.guestSortButtons}>
+                  <Button title="Name A-Z" onPress={() => setGuestSort("name_asc")} />
+                  <Button title="Not Checked In First" onPress={() => setGuestSort("not_checked_in")} />
+                </View>
+                {!isGuestsLoading && !guestsError ? (
+                  <Text style={styles.guestResultCount}>
+                    Showing {finalGuests.length} of {guests.length} guests
+                  </Text>
+                ) : null}
 
                 {!isRsvpsLoading && rsvpsError ? (
                   <View>
@@ -536,26 +819,32 @@ export default function EventDetailsScreen() {
                   <Text style={styles.guestCheckInButtonText}>Scan QR Code</Text>
                 </Pressable>
 
-                {isGuestsLoading ? <Text style={styles.message}>Loading guests…</Text> : null}
-
-                {!isGuestsLoading && guestsError ? (
-                  <View>
-                    <Text accessibilityLiveRegion="polite" style={styles.error}>{guestsError}</Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setGuestsRetryCount((count) => count + 1)}
-                      style={styles.retryButton}
-                    >
-                      <Text style={styles.retryText}>Try again</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-
-                {!isGuestsLoading && !guestsError && guests.length === 0 ? (
-                  <Text style={styles.emptyState}>No guests added yet. Add the first guest to get started.</Text>
-                ) : null}
-
-                {guests.map((guest) => {
+                {isGuestsLoading ? (
+                  <LoadingState message="Loading guests..." />
+                ) : guestsError ? (
+                  <ErrorState
+                    message="Unable to load guests."
+                    onRetry={retryGuestLoading}
+                  />
+                ) : guests.length === 0 ? (
+                  <EmptyState
+                    title="No Guests Yet"
+                    message="Add your first guest to this event."
+                    buttonTitle="Add Guest"
+                    onPress={() => router.push(`/event/${event.id}/add-guest`)}
+                  />
+                ) : finalGuests.length === 0 ? (
+                  <EmptyState
+                    title="No Matching Guests"
+                    message="Try a different search or filter."
+                    buttonTitle="Clear Search & Filters"
+                    onPress={() => {
+                      setGuestSearch("");
+                      setGuestFilter("all");
+                    }}
+                  />
+                ) : (
+                sortedGuests.map((guest) => {
                   const guestRsvp = rsvps.find(
                     (item) => Number(item.guest_id) === Number(guest.id),
                   );
@@ -618,22 +907,26 @@ export default function EventDetailsScreen() {
                       >
                         <Text style={styles.addContributionButtonText}>View Guest</Text>
                       </Pressable>
-                      <Pressable
-                        accessibilityHint={`Opens the contribution form for ${guest.full_name}`}
-                        accessibilityRole="button"
-                        onPress={() => router.push(`/event/${event.id}/add-contribution?guestId=${guest.id}`)}
-                        style={styles.addContributionButton}
-                      >
-                        <Text style={styles.addContributionButtonText}>+  Add Contribution</Text>
-                      </Pressable>
-                      <Pressable
-                        accessibilityHint={`Opens the RSVP form for ${guest.full_name}`}
-                        accessibilityRole="button"
-                        onPress={() => router.push(`/event/rsvp?id=${event.id}&guestId=${guest.id}`)}
-                        style={styles.addContributionButton}
-                      >
-                        <Text style={styles.addContributionButtonText}>RSVP</Text>
-                      </Pressable>
+                      {!eventLocked && (
+                        <>
+                          <Pressable
+                            accessibilityHint={`Opens the contribution form for ${guest.full_name}`}
+                            accessibilityRole="button"
+                            onPress={() => router.push(`/event/${event.id}/add-contribution?guestId=${guest.id}`)}
+                            style={styles.addContributionButton}
+                          >
+                            <Text style={styles.addContributionButtonText}>+  Add Contribution</Text>
+                          </Pressable>
+                          <Pressable
+                            accessibilityHint={`Opens the RSVP form for ${guest.full_name}`}
+                            accessibilityRole="button"
+                            onPress={() => router.push(`/event/rsvp?id=${event.id}&guestId=${guest.id}`)}
+                            style={styles.addContributionButton}
+                          >
+                            <Text style={styles.addContributionButtonText}>RSVP</Text>
+                          </Pressable>
+                        </>
+                      )}
                       {guest.check_in_status !== "checked_in" ? (
                         <Pressable
                           accessibilityHint={`Opens the check-in screen for ${guest.full_name}`}
@@ -670,7 +963,8 @@ export default function EventDetailsScreen() {
                       </Pressable>
                     </View>
                   );
-                })}
+                })
+                )}
               </View>
 
               <View style={styles.contributionsSection}>
@@ -826,6 +1120,29 @@ function getSummaryToneColor(tone: SummaryTone): string {
   return colors.accent;
 }
 
+function getStatusLabel(status: string): string {
+  if (status === "draft") return "📝 Draft";
+  if (status === "active") return "🟢 Active";
+  if (status === "published") return "🟢 Published";
+  if (status === "completed") return "✅ Completed";
+  if (status === "cancelled") return "❌ Cancelled";
+  return status || "Unknown";
+}
+
+function getStatusBadgeStyle(status: string) {
+  if (status === "active" || status === "published") return styles.statusBadgeSuccess;
+  if (status === "completed") return styles.statusBadgeMuted;
+  if (status === "cancelled") return styles.statusBadgeDanger;
+  return styles.statusBadgeDraft; // draft or unknown
+}
+
+function getStatusTextStyle(status: string) {
+  if (status === "active" || status === "published") return styles.statusTextSuccess;
+  if (status === "completed") return styles.statusTextMuted;
+  if (status === "cancelled") return styles.statusTextDanger;
+  return styles.statusTextDraft;
+}
+
 function getContributionStatus(contribution: EventContribution): string {
   const status = (contribution.payment_status ?? contribution.status ?? "").trim().toLowerCase() || "pending";
   if (status === "paid" || status === "confirmed") return "paid";
@@ -871,6 +1188,13 @@ const styles = StyleSheet.create({
   deleteEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: "#351F1D" },
   deleteEventButtonDisabled: { opacity: 0.55 },
   deleteEventButtonText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
+  activateEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.success, borderRadius: 11, backgroundColor: "#153126" },
+  activateEventButtonText: { color: colors.success, fontSize: 14, fontWeight: "700" },
+  completeEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
+  completeEventButtonText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
+  cancelEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: "#351F1D" },
+  cancelEventButtonText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
+  buttonDisabled: { opacity: 0.55 },
   summaryPanel: { marginTop: 24, padding: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface },
   summaryHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
   summaryHeaderCopy: { flex: 1 },
@@ -902,6 +1226,11 @@ const styles = StyleSheet.create({
   guestsSection: { marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border },
   guestsHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   guestsTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  guestSearchInput: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 12, marginBottom: 10, color: colors.text, backgroundColor: colors.surface },
+  sortGuestsLabel: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: 5 },
+  guestSortButtons: { gap: 4, marginBottom: 10 },
+  guestResultCount: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: 10 },
+  guestSearchEmpty: { color: colors.textMuted, textAlign: "center", marginTop: 20, fontSize: 13 },
   guestCount: { overflow: "hidden", borderRadius: 20, backgroundColor: colors.accentSoft, color: colors.accent, paddingHorizontal: 10, paddingVertical: 4, fontSize: 12, fontWeight: "700" },
   emptyState: { color: colors.textMuted, fontSize: 13, lineHeight: 20, paddingVertical: 8 },
   guestCard: { marginTop: 10, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
@@ -924,4 +1253,36 @@ const styles = StyleSheet.create({
   paymentPendingText: { color: colors.accent },
   paymentPaidText: { color: colors.success },
   paymentFailedText: { color: colors.danger },
+  // ── Status Badge ──
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  statusBadgeText: { fontSize: 12, fontWeight: "700" },
+  statusBadgeDraft: { backgroundColor: "#332B12" },
+  statusBadgeSuccess: { backgroundColor: "#153126" },
+  statusBadgeMuted: { backgroundColor: "#1E1E1E" },
+  statusBadgeDanger: { backgroundColor: "#351F1D" },
+  statusTextDraft: { color: "#C9A227" },
+  statusTextSuccess: { color: colors.success },
+  statusTextMuted: { color: colors.textMuted },
+  statusTextDanger: { color: colors.danger },
+  // ── Quick Actions ──
+  quickActionsSection: { marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: colors.border },
+  quickActionsTitle: { color: colors.text, fontSize: 18, fontWeight: "700", marginBottom: 14 },
+  quickActionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  quickActionBtn: {
+    flexGrow: 1,
+    flexBasis: "45%",
+    minHeight: 80,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 14,
+    backgroundColor: colors.accentSoft,
+  },
+  quickActionBtnPressed: { opacity: 0.65 },
+  quickActionEmoji: { fontSize: 26 },
+  quickActionLabel: { color: colors.accent, fontSize: 12, fontWeight: "700", textAlign: "center" },
 });

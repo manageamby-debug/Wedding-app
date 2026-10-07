@@ -3,6 +3,9 @@ import { useCallback, useState } from "react";
 import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import api from "../../../src/services/api";
+import EmptyState from "../../../components/EmptyState";
+import ErrorState from "../../../components/ErrorState";
+import LoadingState from "../../../components/LoadingState";
 import { colors } from "../../../src/constants/theme";
 
 type GuestData = {
@@ -98,6 +101,7 @@ export default function GuestDetailsScreen() {
   const [rsvp, setRsvp] = useState<GuestRSVP | null>(null);
   const [contributionSummary, setContributionSummary] = useState<GuestContributionSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [guestError, setGuestError] = useState("");
   const [rsvpError, setRsvpError] = useState("");
   const [contributionsError, setContributionsError] = useState("");
@@ -107,9 +111,13 @@ export default function GuestDetailsScreen() {
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
+    setIsLoading(true);
+    setHasLoadError(false);
+    setGuestError("");
 
     if (!isPositiveId(guestId) || !isPositiveId(eventId)) {
       setGuestError("This guest link is invalid. Return to Event Details and try again.");
+      setHasLoadError(true);
       setIsLoading(false);
       return () => {
         isActive = false;
@@ -126,12 +134,14 @@ export default function GuestDetailsScreen() {
       if (!isActive) return;
 
       if (guestsResult.status === "fulfilled") {
+        setHasLoadError(false);
         const found = guestsResult.value.data.find((item) => item.id === Number(guestId)) ?? null;
 
         console.log("Guest details:", found);
         setGuest(found);
         setGuestError(found ? "" : "Guest not found in this event.");
       } else {
+        setHasLoadError(true);
         console.error("Load guest failed:", guestsResult.reason);
         setGuestError(describeError(
           guestsResult.reason,
@@ -176,6 +186,37 @@ export default function GuestDetailsScreen() {
       isActive = false;
     };
   }, [guestId, eventId, retryCount]));
+
+  function retryLoadGuest() {
+    setIsLoading(true);
+    setHasLoadError(false);
+    setGuestError("");
+    setRetryCount((count) => count + 1);
+  }
+
+  if (isLoading) {
+    return <LoadingState message="Loading guest..." />;
+  }
+
+  if (hasLoadError) {
+    return (
+      <ErrorState
+        message="Unable to load guest information."
+        onRetry={retryLoadGuest}
+      />
+    );
+  }
+
+  if (!guest) {
+    return (
+      <EmptyState
+        title="Guest Not Found"
+        message="This guest could not be found."
+        buttonTitle="Go Back"
+        onPress={() => router.back()}
+      />
+    );
+  }
 
   async function performDeleteGuest() {
     if (!isPositiveId(guestId) || isDeleting) return;
@@ -254,24 +295,6 @@ export default function GuestDetailsScreen() {
           <Text style={styles.eyebrow}>GUEST · #{guestId ?? "—"}</Text>
           <Text style={styles.title}>Guest Details</Text>
 
-          {isLoading ? <Text style={styles.message}>Loading guest…</Text> : null}
-
-          {!isLoading && guestError ? (
-            <View>
-              <Text accessibilityLiveRegion="polite" style={styles.error}>{guestError}</Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setIsLoading(true);
-                  setRetryCount((count) => count + 1);
-                }}
-                style={styles.retryButton}
-              >
-                <Text style={styles.retryText}>Try again</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
           {guest ? (
             <>
               <Text style={styles.guestName}>{guest.full_name}</Text>
@@ -280,12 +303,7 @@ export default function GuestDetailsScreen() {
                 <DetailRow label="Phone" value={guest.phone || "No phone provided"} />
                 <DetailRow label="Email" value={guest.email || "N/A"} />
                 <DetailRow label="Guest Code" value={guest.guest_code} />
-                <DetailRow label="RSVP" value={rsvpLabel} capitalize />
-                <DetailRow
-                  label="Check-in"
-                  value={isCheckedIn ? "Checked in" : "Not checked in"}
-                  last
-                />
+                <DetailRow label="RSVP" value={rsvpLabel} capitalize last />
               </View>
 
               {rsvpError ? <Text style={styles.sectionError}>{rsvpError}</Text> : null}
@@ -360,7 +378,7 @@ export default function GuestDetailsScreen() {
 
               <View style={styles.section}>
                 <View style={styles.sectionHeading}>
-                  <Text style={styles.sectionTitle}>Contributions</Text>
+                  <Text style={styles.sectionTitle}>💳 Contribution History</Text>
                   {contributionSummary ? (
                     <Text style={styles.count}>{contributionSummary.total_contributions}</Text>
                   ) : null}
@@ -397,10 +415,6 @@ export default function GuestDetailsScreen() {
                       <Text style={styles.emptyState}>No contributions recorded for this guest yet.</Text>
                     ) : null}
 
-                    {contributionSummary.contributions.length > 0 ? (
-                      <Text style={styles.historyTitle}>CONTRIBUTION HISTORY</Text>
-                    ) : null}
-
                     {contributionSummary.contributions.map((contribution) => {
                       const paymentKey = getPaymentKey(contribution.payment_status);
 
@@ -421,6 +435,7 @@ export default function GuestDetailsScreen() {
                           <Text style={styles.contributionMeta}>
                             {contribution.payment_method.replaceAll("_", " ")}
                           </Text>
+                          <Text style={styles.contributionNote}>Contribution ID: #{contribution.id}</Text>
                           {contribution.transaction_reference ? (
                             <Text style={styles.contributionNote}>Ref: {contribution.transaction_reference}</Text>
                           ) : null}
@@ -441,6 +456,15 @@ export default function GuestDetailsScreen() {
                 >
                   <Text style={styles.addButtonText}>+  Add Contribution</Text>
                 </Pressable>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🎟 Check-in</Text>
+                <DetailRow
+                  label="Status"
+                  value={isCheckedIn ? "✅ Checked in" : "⏳ Not checked in"}
+                  last
+                />
               </View>
             </>
           ) : null}
@@ -556,7 +580,6 @@ const styles = StyleSheet.create({
   contributionStatus: { color: colors.accent, fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
   contributionMeta: { color: colors.textMuted, fontSize: 12, marginTop: 7, textTransform: "capitalize" },
   contributionNote: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 7 },
-  historyTitle: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.1, marginTop: 18 },
   viewDetails: { color: colors.accent, fontSize: 12, fontWeight: "700", marginTop: 12 },
   pressed: { opacity: 0.78 },
   addButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 16, borderRadius: 11, backgroundColor: colors.accent },

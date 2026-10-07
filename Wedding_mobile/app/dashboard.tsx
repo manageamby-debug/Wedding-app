@@ -4,6 +4,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import api from "../src/services/api";
 import { colors } from "../src/constants/theme";
+import EmptyState from "../components/EmptyState";
+import ErrorState from "../components/ErrorState";
+import EventCard from "../components/EventCard";
+import LoadingState from "../components/LoadingState";
 
 type DashboardUser = {
   id: number;
@@ -25,7 +29,7 @@ type DashboardEvent = {
   venue_address: string;
   description: string | null;
   target_contribution: number | string;
-  status: "draft" | "published" | "completed" | "cancelled";
+  status: "draft" | "active" | "published" | "completed" | "cancelled";
 };
 
 export default function Dashboard() {
@@ -35,6 +39,7 @@ export default function Dashboard() {
   const [isEventsLoading, setIsEventsLoading] = useState(true);
   const [userError, setUserError] = useState("");
   const [eventsError, setEventsError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -98,9 +103,42 @@ export default function Dashboard() {
     return () => {
       isActive = false;
     };
-  }, []));
+  }, [retryCount]));
+
+  if (isEventsLoading) {
+    return <LoadingState message="Loading your events..." />;
+  }
+
+  if (eventsError) {
+    return (
+      <ErrorState
+        message="Unable to load your events."
+        onRetry={() => setRetryCount((count) => count + 1)}
+      />
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <View style={styles.emptyDashboard}>
+        <Text style={styles.emptyDashboardTitle}>Dashboard</Text>
+        <EmptyState
+          title="No Events Yet"
+          message="Create your first wedding event to get started."
+          buttonTitle="Create Event"
+          onPress={() => router.push("/create-event")}
+        />
+      </View>
+    );
+  }
 
   const firstName = user?.full_name.trim().split(/\s+/)[0] || "there";
+  const activeEvents = events.filter(
+    (event) => event.status === "active" || event.status === "published",
+  );
+  const draftEvents = events.filter((event) => event.status === "draft");
+  const completedEvents = events.filter((event) => event.status === "completed");
+  const cancelledEvents = events.filter((event) => event.status === "cancelled");
 
   return (
     <View style={styles.container}>
@@ -110,7 +148,18 @@ export default function Dashboard() {
           <Text style={styles.title}>{user ? `Welcome, ${firstName}` : "Your dashboard"}</Text>
 
           {isUserLoading ? <Text style={styles.status}>Loading your profile…</Text> : null}
-          {userError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{userError}</Text> : null}
+          {userError ? (
+            <View>
+              <Text accessibilityLiveRegion="polite" style={styles.error}>{userError}</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setRetryCount((count) => count + 1)}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryButtonText}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {user ? (
             <View style={styles.details}>
@@ -146,29 +195,35 @@ export default function Dashboard() {
               </View>
             </View>
 
-            {isEventsLoading ? <Text style={styles.status}>Loading events…</Text> : null}
-            {eventsError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{eventsError}</Text> : null}
-            {!isEventsLoading && !eventsError && events.length === 0 ? (
-              <Text style={styles.emptyState}>No events yet. Your events will appear here.</Text>
-            ) : null}
+            <>
+                <Text style={styles.eventSectionTitle}>🟢 Active Events</Text>
+                {activeEvents.length === 0 ? (
+                  <Text style={styles.emptyState}>No active events yet.</Text>
+                ) : (
+                  activeEvents.map((event) => <EventCard key={event.id} event={event} />)
+                )}
 
-            {events.map((event) => (
-              <Pressable
-                accessibilityHint="Opens the event details"
-                accessibilityRole="button"
-                key={event.id}
-                onPress={() => router.push(`/event/${event.id}`)}
-                style={({ pressed }) => [styles.eventCard, pressed && styles.eventCardPressed]}
-              >
-                <View style={styles.eventHeading}>
-                  <Text style={styles.eventTitle}>{event.name || `${event.groom_name} & ${event.bride_name}`}</Text>
-                  <Text style={styles.eventStatus}>{event.status}</Text>
-                </View>
-                <Text style={styles.eventCoupleNames}>{event.couple_names || `${event.groom_name} & ${event.bride_name}`}</Text>
-                <Text style={styles.eventMeta}>{event.event_date} · {event.event_time.slice(0, 5)}</Text>
-                <Text style={styles.eventVenue}>{event.venue || event.venue_name}</Text>
-              </Pressable>
-            ))}
+                <Text style={styles.eventSectionTitle}>📝 Draft Events</Text>
+                {draftEvents.length === 0 ? (
+                  <Text style={styles.emptyState}>No draft events.</Text>
+                ) : (
+                  draftEvents.map((event) => <EventCard key={event.id} event={event} />)
+                )}
+
+                <Text style={styles.eventSectionTitle}>📦 Completed Events</Text>
+                {completedEvents.length === 0 ? (
+                  <Text style={styles.emptyState}>No completed events.</Text>
+                ) : (
+                  completedEvents.map((event) => <EventCard key={event.id} event={event} />)
+                )}
+
+                <Text style={styles.eventSectionTitle}>❌ Cancelled Events</Text>
+                {cancelledEvents.length === 0 ? (
+                  <Text style={styles.emptyState}>No cancelled events.</Text>
+                ) : (
+                  cancelledEvents.map((event) => <EventCard key={event.id} event={event} />)
+                )}
+            </>
           </View>
         </View>
       </ScrollView>
@@ -177,6 +232,17 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
+  emptyDashboard: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: colors.background,
+  },
+  emptyDashboardTitle: {
+    color: colors.text,
+    fontSize: 28,
+    fontWeight: "700",
+    marginBottom: 20,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -218,6 +284,15 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 14,
   },
+  retryButton: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.accentSoft,
+  },
+  retryButtonText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   details: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -301,48 +376,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     paddingVertical: 8,
   },
-  eventCard: {
-    marginTop: 10,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 13,
-    backgroundColor: colors.card,
-  },
-  eventCardPressed: {
-    opacity: 0.78,
-  },
-  eventHeading: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  eventTitle: {
-    flex: 1,
+  eventSectionTitle: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: 20,
     fontWeight: "700",
-  },
-  eventCoupleNames: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: 5,
-  },
-  eventStatus: {
-    color: colors.accent,
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "capitalize",
-  },
-  eventMeta: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: 9,
-  },
-  eventVenue: {
-    color: colors.text,
-    fontSize: 13,
-    marginTop: 5,
+    marginTop: 20,
+    marginBottom: 10,
   },
 });
