@@ -2,6 +2,9 @@ import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import EmptyState from "../../../components/EmptyState";
+import ErrorState from "../../../components/ErrorState";
+import LoadingState from "../../../components/LoadingState";
 import api from "../../../src/services/api";
 import { getToken } from "../../../src/services/auth";
 import { colors } from "../../../src/constants/theme";
@@ -63,6 +66,7 @@ export default function ContributionDetailsScreen() {
 
   const [contribution, setContribution] = useState<EventContribution | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [reference, setReference] = useState("");
@@ -98,6 +102,7 @@ export default function ContributionDetailsScreen() {
 
     if (!isPositiveId(contributionId) || !isPositiveId(eventId)) {
       setContribution(null);
+      setHasLoadError(true);
       setErrorMessage("This contribution link is invalid. Return to Pending Contributions and try again.");
       setIsLoading(false);
       return () => {
@@ -107,6 +112,7 @@ export default function ContributionDetailsScreen() {
 
     async function loadContribution() {
       setIsLoading(true);
+      setHasLoadError(false);
       setErrorMessage("");
 
       try {
@@ -118,6 +124,7 @@ export default function ContributionDetailsScreen() {
         const found = response.data.find((item) => item.id === Number(contributionId)) ?? null;
         console.log("Contribution details:", found);
         setContribution(found);
+        setHasLoadError(false);
         setProofVersion((version) => version + 1);
         setReference(found?.transaction_reference ?? "");
         setErrorMessage(found ? "" : "Contribution not found in this event.");
@@ -125,6 +132,7 @@ export default function ContributionDetailsScreen() {
         if (!isActive) return;
 
         setContribution(null);
+        setHasLoadError(true);
         setErrorMessage(
           axios.isAxiosError(requestError) && !requestError.response
             ? "Cannot reach the server. Check that the backend is running."
@@ -143,6 +151,13 @@ export default function ContributionDetailsScreen() {
       isActive = false;
     };
   }, [contributionId, eventId, retryCount]));
+
+  function retryLoadContribution() {
+    setIsLoading(true);
+    setHasLoadError(false);
+    setErrorMessage("");
+    setRetryCount((count) => count + 1);
+  }
 
   async function performMarkAsPaid() {
     if (isSaving || !isPositiveId(contributionId)) return;
@@ -264,6 +279,30 @@ export default function ContributionDetailsScreen() {
 
   const status = (contribution?.payment_status ?? "").trim().toLowerCase() || "pending";
 
+  if (isLoading) {
+    return <LoadingState message="Loading payment..." />;
+  }
+
+  if (hasLoadError) {
+    return (
+      <ErrorState
+        message={errorMessage || "Unable to load payment details."}
+        onRetry={isPositiveId(contributionId) && isPositiveId(eventId) ? retryLoadContribution : undefined}
+      />
+    );
+  }
+
+  if (!contribution) {
+    return (
+      <EmptyState
+        title="Payment Not Found"
+        message="This contribution could not be found."
+        buttonTitle="Go Back"
+        onPress={() => router.back()}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -278,23 +317,6 @@ export default function ContributionDetailsScreen() {
 
           <Text style={styles.eyebrow}>CONTRIBUTION · #{contributionId ?? "—"}</Text>
           <Text style={styles.title}>Contribution Details</Text>
-
-          {isLoading ? <Text style={styles.message}>Loading contribution…</Text> : null}
-
-          {!isLoading && errorMessage ? (
-            <View>
-              <Text accessibilityLiveRegion="polite" style={styles.error}>{errorMessage}</Text>
-              {isPositiveId(contributionId) && isPositiveId(eventId) ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setRetryCount((count) => count + 1)}
-                  style={styles.retryButton}
-                >
-                  <Text style={styles.retryText}>Try again</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
 
           {contribution ? (
             <>
@@ -535,8 +557,6 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 26, fontWeight: "700", marginBottom: 20 },
   message: { color: colors.textMuted, fontSize: 14 },
   error: { color: colors.danger, fontSize: 14, lineHeight: 21 },
-  retryButton: { alignSelf: "flex-start", marginTop: 16, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, backgroundColor: colors.accentSoft },
-  retryText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
   amount: { color: colors.text, fontSize: 28, fontWeight: "700" },
   badge: { alignSelf: "flex-start", marginTop: 12, marginBottom: 20, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 6 },
   badgeText: { fontSize: 11, fontWeight: "700", textTransform: "capitalize" },

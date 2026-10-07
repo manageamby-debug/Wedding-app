@@ -2,6 +2,9 @@ import axios from "axios";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import EmptyState from "../../components/EmptyState";
+import ErrorState from "../../components/ErrorState";
+import LoadingState from "../../components/LoadingState";
 import api from "../../src/services/api";
 import { colors } from "../../src/constants/theme";
 
@@ -37,13 +40,6 @@ const SUBTITLES: Record<PaymentFilter, string> = {
   paid: "Payments you have confirmed as received.",
   rejected: "Payments that were rejected, with the reason given.",
   all: "Every payment recorded for this event, whatever its status.",
-};
-
-const EMPTY_MESSAGES: Record<PaymentFilter, string> = {
-  pending: "No pending payments. Everything recorded has been resolved.",
-  paid: "No paid payments yet.",
-  rejected: "No rejected payments.",
-  all: "No payments recorded yet.",
 };
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -190,6 +186,12 @@ export default function PendingContributionsScreen() {
     };
   }, [eventId, retryCount]));
 
+  function retryLoadContributions() {
+    setIsLoading(true);
+    setErrorMessage("");
+    setRetryCount((count) => count + 1);
+  }
+
   function getGuestName(guestId: number): string {
     const guest = guests.find((item) => Number(item.id) === Number(guestId));
     return guest?.full_name || `Guest #${guestId}`;
@@ -220,6 +222,30 @@ export default function PendingContributionsScreen() {
   );
   const filteredTotal = filteredContributions.reduce((total, contribution) => total + toAmount(contribution.amount), 0);
 
+  if (isLoading) {
+    return <LoadingState message="Loading payments..." />;
+  }
+
+  if (errorMessage) {
+    return (
+      <ErrorState
+        message={errorMessage || "Unable to load payments."}
+        onRetry={isPositiveId(eventId) ? retryLoadContributions : undefined}
+      />
+    );
+  }
+
+  if (contributions.length === 0) {
+    return (
+      <EmptyState
+        title="No Payments Yet"
+        message="There are no contribution records for this event."
+        buttonTitle="Back to Event"
+        onPress={() => router.back()}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -236,25 +262,7 @@ export default function PendingContributionsScreen() {
           <Text style={styles.title}>Payments</Text>
           <Text style={styles.subtitle}>{SUBTITLES[filter]}</Text>
 
-          {isLoading ? <Text style={styles.message}>Loading payments…</Text> : null}
-
-          {!isLoading && errorMessage ? (
-            <View>
-              <Text accessibilityLiveRegion="polite" style={styles.error}>{errorMessage}</Text>
-              {isPositiveId(eventId) ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setRetryCount((count) => count + 1)}
-                  style={styles.retryButton}
-                >
-                  <Text style={styles.retryText}>Try again</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          {!isLoading && !errorMessage ? (
-            <>
+          <>
               <View style={styles.searchRow}>
                 <TextInput
                   accessibilityLabel="Search payments by guest name, phone or payment reference"
@@ -309,12 +317,16 @@ export default function PendingContributionsScreen() {
               </View>
 
               {filteredContributions.length === 0 ? (
-                <Text style={styles.emptyState}>
-                  {query ? `No ${filter === "all" ? "" : `${filter} `}payments match "${search.trim()}".` : EMPTY_MESSAGES[filter]}
-                </Text>
-              ) : null}
-
-              {filteredContributions.map((contribution) => {
+                <EmptyState
+                  title="No Matching Payments"
+                  message="No payments match the selected filter or search."
+                  buttonTitle="Clear Filters"
+                  onPress={() => {
+                    setFilter("all");
+                    setSearch("");
+                  }}
+                />
+              ) : filteredContributions.map((contribution) => {
                 const status = getPaymentStatus(contribution);
                 const guestName = getGuestName(contribution.guest_id);
 
@@ -352,8 +364,7 @@ export default function PendingContributionsScreen() {
                   </Pressable>
                 );
               })}
-            </>
-          ) : null}
+          </>
         </View>
       </ScrollView>
     </View>
@@ -369,10 +380,6 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
   title: { color: colors.text, fontSize: 26, fontWeight: "700" },
   subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 20 },
-  message: { color: colors.textMuted, fontSize: 14 },
-  error: { color: colors.danger, fontSize: 14, lineHeight: 21 },
-  retryButton: { alignSelf: "flex-start", marginTop: 16, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, backgroundColor: colors.accentSoft },
-  retryText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
   filters: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   searchInput: { flex: 1, minHeight: 46, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14 },
@@ -387,7 +394,6 @@ const styles = StyleSheet.create({
   summaryItem: { flexGrow: 1, flexBasis: "40%", minWidth: 130, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.card },
   summaryLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "600" },
   summaryValue: { color: colors.accent, fontSize: 18, fontWeight: "700", marginTop: 6 },
-  emptyState: { color: colors.textMuted, fontSize: 13, lineHeight: 20, paddingVertical: 16 },
   contributionCard: { marginTop: 10, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
   row: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   guestName: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "700" },
