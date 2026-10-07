@@ -3,6 +3,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import api from "../../../src/services/api";
+import PaymentSummary from "../../../src/components/PaymentSummary";
 import { colors } from "../../../src/constants/theme";
 
 type EventDetailsData = {
@@ -265,17 +266,53 @@ export default function EventDetailsScreen() {
     ]);
   }
 
-  const totalContributions = contributions.reduce((total, contribution) => {
-    const amount = Number(contribution.amount);
-    return total + (Number.isFinite(amount) ? amount : 0);
-  }, 0);
-  const paidContributions = contributions.filter(
-    (contribution) => getContributionStatus(contribution) === "paid",
-  );
-  const totalPaid = paidContributions.reduce((total, contribution) => {
-    const amount = Number(contribution.amount);
-    return total + (Number.isFinite(amount) ? amount : 0);
-  }, 0);
+  const pendingCount = contributions.filter(
+    (contribution) => getContributionStatus(contribution) === "pending",
+  ).length;
+
+  // One fetch, grouped locally: contributions are already loaded for the whole event,
+  // so each guest card reads from this map instead of calling the API per guest.
+  const contributionsByGuest = new Map<number, EventContribution[]>();
+  for (const contribution of contributions) {
+    const guestId = Number(contribution.guest_id);
+    const list = contributionsByGuest.get(guestId);
+    if (list) list.push(contribution);
+    else contributionsByGuest.set(guestId, [contribution]);
+  }
+
+  function getGuestPaymentStatus(guestId: number): GuestPayment {
+    const guestContributions = contributionsByGuest.get(Number(guestId)) ?? [];
+    let paidAmount = 0;
+    let pendingAmount = 0;
+    let rejectedAmount = 0;
+
+    for (const contribution of guestContributions) {
+      const status = getContributionStatus(contribution);
+      const amount = Number(contribution.amount);
+      const value = Number.isFinite(amount) ? amount : 0;
+
+      if (status === "paid" || status === "confirmed") paidAmount += value;
+      else if (status === "rejected" || status === "failed") rejectedAmount += value;
+      else pendingAmount += value;
+    }
+
+    // A guest can have several contributions. Paid money with more still waiting is
+    // "partially paid"; rejected amounts never count as paid or as waiting.
+    let status: GuestPaymentStatus = "none";
+    if (paidAmount > 0 && pendingAmount > 0) status = "partially_paid";
+    else if (paidAmount > 0) status = "paid";
+    else if (pendingAmount > 0) status = "pending";
+    else if (rejectedAmount > 0) status = "rejected";
+
+    return {
+      amount: paidAmount + pendingAmount + rejectedAmount,
+      paidAmount,
+      pendingAmount,
+      rejectedAmount,
+      status,
+    };
+  }
+
   const acceptedRSVPs = rsvps.filter((rsvp) => rsvp.status === "attending").length;
   const declinedRSVPs = rsvps.filter((rsvp) => rsvp.status === "not_attending").length;
   const maybeRSVPs = rsvps.filter((rsvp) => rsvp.status === "maybe").length;
@@ -443,20 +480,12 @@ export default function EventDetailsScreen() {
                   />
                 </SummaryGroup>
 
-                <SummaryGroup title="CONTRIBUTIONS">
-                  <SummaryMetric
-                    label="Total recorded"
-                    value={isContributionsLoading || contributionsError ? "—" : formatTsh(totalContributions)}
-                    hint="Across all payment statuses"
-                    tone="accent"
-                  />
-                  <SummaryMetric
-                    label="Total paid"
-                    value={isContributionsLoading || contributionsError ? "—" : formatTsh(totalPaid)}
-                    hint="Confirmed as paid"
-                    tone="success"
-                  />
-                </SummaryGroup>
+                <PaymentSummary
+                  contributions={contributions}
+                  targetContribution={event?.target_contribution}
+                  isLoading={isContributionsLoading}
+                  error={contributionsError}
+                />
               </View>
 
               <View style={styles.guestsSection}>
@@ -535,6 +564,8 @@ export default function EventDetailsScreen() {
                       : guestRSVP
                         ? guestRSVP.status.replaceAll("_", " ")
                         : "Not responded";
+                  const payment = getGuestPaymentStatus(guest.id);
+                  const paymentUnavailable = isContributionsLoading || !!contributionsError;
 
                   return (
                     <View key={guest.id} style={styles.guestCard}>
@@ -545,6 +576,21 @@ export default function EventDetailsScreen() {
                       <Text style={styles.guestContact}>{guest.phone || "No phone provided"}</Text>
                       {guest.email ? <Text style={styles.guestContact}>{guest.email}</Text> : null}
                       <Text style={styles.guestContact}>Guest Code: {guest.guest_code}</Text>
+                      <Text style={styles.guestContact}>
+                        Total Contributions: {paymentUnavailable ? "—" : formatTsh(payment.amount)}
+                      </Text>
+                      <Text style={styles.guestContact}>
+                        Paid: {paymentUnavailable ? "—" : formatTsh(payment.paidAmount)}
+                      </Text>
+                      {!paymentUnavailable && payment.pendingAmount > 0 ? (
+                        <Text style={styles.guestContact}>Pending: {formatTsh(payment.pendingAmount)}</Text>
+                      ) : null}
+                      {!paymentUnavailable && payment.rejectedAmount > 0 ? (
+                        <Text style={styles.guestContact}>Rejected: {formatTsh(payment.rejectedAmount)}</Text>
+                      ) : null}
+                      <Text style={[styles.guestPayment, { color: getGuestPaymentColor(payment.status, paymentUnavailable) }]}>
+                        Payment: {paymentUnavailable ? (isContributionsLoading ? "Loading…" : "Unavailable") : getGuestPaymentLabel(payment.status)}
+                      </Text>
                       <Text style={styles.rsvpStatus}>RSVP: {rsvpStatus}</Text>
                       <Text style={styles.rsvpStatus}>
                         Check-in: {guest.check_in_status === "checked_in" ? "Checked in" : "Not checked in"}
@@ -623,12 +669,23 @@ export default function EventDetailsScreen() {
                 {isContributionsLoading ? <Text style={styles.message}>Loading contributions…</Text> : null}
 
                 <Pressable
+                  accessibilityHint="Opens the payment totals for this event: collected, pending and rejected"
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/event/payment-dashboard?id=${event.id}`)}
+                  style={styles.guestCheckInButton}
+                >
+                  <Text style={styles.guestCheckInButtonText}>Payment Dashboard</Text>
+                </Pressable>
+
+                <Pressable
                   accessibilityHint="Opens the list of contributions that are not yet confirmed as paid"
                   accessibilityRole="button"
                   onPress={() => router.push(`/event/pending-contributions?id=${event.id}`)}
                   style={styles.guestCheckInButton}
                 >
-                  <Text style={styles.guestCheckInButtonText}>Pending Contributions</Text>
+                  <Text style={styles.guestCheckInButtonText}>
+                    {isContributionsLoading || contributionsError ? "Pending Payments" : `Pending Payments (${pendingCount})`}
+                  </Text>
                 </Pressable>
 
                 {!isContributionsLoading && contributionsError ? (
@@ -691,6 +748,32 @@ function DetailRow({ label, value, last = false }: { label: string; value: strin
 
 type SummaryTone = "accent" | "success" | "danger" | "info";
 
+type GuestPaymentStatus = "paid" | "partially_paid" | "pending" | "rejected" | "none";
+
+type GuestPayment = {
+  amount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  rejectedAmount: number;
+  status: GuestPaymentStatus;
+};
+
+function getGuestPaymentLabel(status: GuestPaymentStatus): string {
+  if (status === "paid") return "✅ Paid";
+  if (status === "partially_paid") return "🟡 Partially Paid";
+  if (status === "pending") return "⏳ Pending";
+  if (status === "rejected") return "❌ Rejected";
+  return "— No Payment";
+}
+
+function getGuestPaymentColor(status: GuestPaymentStatus, unavailable: boolean): string {
+  if (unavailable || status === "none") return colors.textMuted;
+  if (status === "paid") return colors.success;
+  if (status === "partially_paid") return colors.info;
+  if (status === "rejected") return colors.danger;
+  return colors.accent;
+}
+
 function SummaryGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={styles.summaryGroup}>
@@ -729,7 +812,10 @@ function getSummaryToneColor(tone: SummaryTone): string {
 }
 
 function getContributionStatus(contribution: EventContribution): string {
-  return (contribution.payment_status ?? contribution.status ?? "").trim().toLowerCase() || "pending";
+  const status = (contribution.payment_status ?? contribution.status ?? "").trim().toLowerCase() || "pending";
+  if (status === "paid" || status === "confirmed") return "paid";
+  if (status === "failed" || status === "rejected") return "rejected";
+  return status;
 }
 
 function getPaymentStatusStyle(status: string) {
@@ -809,6 +895,7 @@ const styles = StyleSheet.create({
   guestStatus: { color: colors.accent, fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
   guestContact: { color: colors.textMuted, fontSize: 12, marginTop: 7 },
   rsvpStatus: { color: colors.accent, fontSize: 12, fontWeight: "700", marginTop: 10, textTransform: "capitalize" },
+  guestPayment: { fontSize: 12, fontWeight: "700", marginTop: 7 },
   addContributionButton: { alignSelf: "flex-start", minHeight: 34, justifyContent: "center", marginTop: 12, paddingHorizontal: 11, borderRadius: 9, backgroundColor: colors.accentSoft },
   addContributionButtonText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   contributionsSection: { marginTop: 26, paddingTop: 22, borderTopWidth: 1, borderTopColor: colors.border },

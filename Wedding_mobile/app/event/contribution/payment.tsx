@@ -1,6 +1,8 @@
 import axios from "axios";
+import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -69,6 +71,7 @@ export default function PaymentScreen() {
   const [contribution, setContribution] = useState<Contribution | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [paymentReference, setPaymentReference] = useState("");
+  const [paymentProof, setPaymentProof] = useState<{ uri: string; mimeType: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -117,6 +120,69 @@ export default function PaymentScreen() {
   const status = (contribution?.payment_status ?? "").trim().toLowerCase();
   const isPaid = status === "paid" || status === "confirmed";
 
+  async function pickPaymentProof() {
+    if (isSaving) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const mimeType = asset.mimeType?.toLowerCase() ?? "image/jpeg";
+        if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+          setErrorMessage("Choose a JPG, PNG or WebP image for the payment proof.");
+          return;
+        }
+        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+          setErrorMessage("Payment proof must be 5 MB or smaller.");
+          return;
+        }
+
+        setPaymentProof({ uri: asset.uri, mimeType });
+        setErrorMessage("");
+      }
+    } catch (pickerError) {
+      console.error("Pick payment proof failed:", pickerError);
+      setErrorMessage("Could not open your photo library. Please try again.");
+    }
+  }
+
+  async function uploadPaymentProof() {
+    if (!paymentProof || !isPositiveId(contributionId)) return;
+
+    const extension = paymentProof.mimeType === "image/png"
+      ? "png"
+      : paymentProof.mimeType === "image/webp"
+        ? "webp"
+        : "jpg";
+    const fileName = `payment-proof.${extension}`;
+    const formData = new FormData();
+
+    if (Platform.OS === "web") {
+      const blob = await (await fetch(paymentProof.uri)).blob();
+      formData.append("file", blob, fileName);
+    } else {
+      formData.append("file", {
+        uri: paymentProof.uri,
+        name: fileName,
+        type: paymentProof.mimeType,
+      } as unknown as Blob);
+    }
+
+    const response = await api.post(
+      `/contributions/${contributionId}/payment-proof`,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 30000,
+      },
+    );
+    console.log("Payment proof uploaded:", response.data);
+  }
+
   async function submitPayment() {
     setErrorMessage("");
     setReferenceError("");
@@ -138,15 +204,28 @@ export default function PaymentScreen() {
     if (!isPositiveId(contributionId) || isPaid || isSaving) return;
 
     setIsSaving(true);
+    let paymentDetailsSaved = false;
     try {
       const response = await api.put<Contribution>(`/contributions/${contributionId}`, {
         payment_method: paymentMethod,
         transaction_reference: trimmedReference,
       });
+      paymentDetailsSaved = true;
+      setContribution((current) => (current ? { ...current, ...response.data } : current));
       console.log("Payment submitted:", response.data);
+
+      if (paymentProof) {
+        await uploadPaymentProof();
+      }
+
       router.back();
     } catch (error) {
-      setErrorMessage(getApiErrorMessage(error));
+      console.error(paymentDetailsSaved ? "Payment proof upload failed:" : "Payment submission failed:", error);
+      setErrorMessage(
+        paymentDetailsSaved
+          ? `Payment details are saved as pending, but the proof was not uploaded. ${getApiErrorMessage(error)}`
+          : getApiErrorMessage(error),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -254,6 +333,37 @@ export default function PaymentScreen() {
                     value={paymentReference}
                   />
                   <Text style={styles.helper}>Use the reference shown on your mobile money or bank confirmation.</Text>
+
+                  <Text style={styles.inputLabel}>PAYMENT PROOF · OPTIONAL</Text>
+                  <Text style={styles.helper}>Attach a JPG, PNG or WebP image up to 5 MB.</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isSaving }}
+                    disabled={isSaving}
+                    onPress={() => void pickPaymentProof()}
+                    style={({ pressed }) => [styles.proofButton, pressed && styles.pressed, isSaving && styles.disabled]}
+                  >
+                    <Text style={styles.proofButtonText}>{paymentProof ? "Change payment proof" : "Choose image"}</Text>
+                  </Pressable>
+                  {paymentProof ? (
+                    <View style={styles.proofPreview}>
+                      <Image accessibilityLabel="Selected payment proof preview" source={{ uri: paymentProof.uri }} style={styles.proofImage} />
+                      <View style={styles.proofCopy}>
+                        <Text style={styles.proofName}>Proof attached</Text>
+                        <Text style={styles.methodDescription}>{paymentProof.mimeType}</Text>
+                      </View>
+                      <Pressable
+                        accessibilityLabel="Remove payment proof"
+                        accessibilityRole="button"
+                        disabled={isSaving}
+                        onPress={() => setPaymentProof(null)}
+                        style={styles.removeProofButton}
+                      >
+                        <Text style={styles.removeProofText}>Remove</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+
                   {referenceError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{referenceError}</Text> : null}
                   {errorMessage ? <Text accessibilityLiveRegion="polite" style={styles.error}>{errorMessage}</Text> : null}
 
@@ -314,6 +424,14 @@ const styles = StyleSheet.create({
   inputLabel: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
   input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14 },
   inputError: { borderColor: colors.danger },
+  proofButton: { minHeight: 46, alignItems: "center", justifyContent: "center", borderWidth: 1, borderStyle: "dashed", borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
+  proofButtonText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
+  proofPreview: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, padding: 10, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  proofImage: { width: 56, height: 56, borderRadius: 8, backgroundColor: colors.border },
+  proofCopy: { flex: 1 },
+  proofName: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  removeProofButton: { paddingHorizontal: 8, paddingVertical: 8 },
+  removeProofText: { color: colors.danger, fontSize: 12, fontWeight: "600" },
   submitButton: { minHeight: 52, alignItems: "center", justifyContent: "center", marginTop: 22, borderRadius: 11, backgroundColor: colors.accent },
   submitText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
   pressed: { opacity: 0.78 },

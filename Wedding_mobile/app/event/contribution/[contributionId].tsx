@@ -1,8 +1,9 @@
 import axios from "axios";
-import { useCallback, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import api from "../../../src/services/api";
+import { getToken } from "../../../src/services/auth";
 import { colors } from "../../../src/constants/theme";
 
 type EventContribution = {
@@ -67,6 +68,30 @@ export default function ContributionDetailsScreen() {
   const [reference, setReference] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [proofFailed, setProofFailed] = useState(false);
+  const [proofVersion, setProofVersion] = useState(0);
+
+  const hasProof = !!contribution?.has_payment_proof;
+
+  // The proof endpoint is private (needs the organizer's login token), so the image
+  // request must carry the Authorization header.
+  useEffect(() => {
+    if (!hasProof) return;
+
+    let isActive = true;
+    setProofFailed(false);
+    void getToken().then((token) => {
+      if (isActive) setAuthToken(token);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [hasProof]);
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -93,6 +118,7 @@ export default function ContributionDetailsScreen() {
         const found = response.data.find((item) => item.id === Number(contributionId)) ?? null;
         console.log("Contribution details:", found);
         setContribution(found);
+        setProofVersion((version) => version + 1);
         setReference(found?.transaction_reference ?? "");
         setErrorMessage(found ? "" : "Contribution not found in this event.");
       } catch (requestError) {
@@ -133,20 +159,26 @@ export default function ContributionDetailsScreen() {
 
       console.log("Contribution marked as paid:", response.data);
       setContribution((current) => (current ? { ...current, ...response.data } : current));
+      if (Platform.OS === "web") {
+        window.alert("Success\n\nPayment has been marked as paid.");
+      } else {
+        Alert.alert("Success", "Payment has been marked as paid.");
+      }
     } catch (requestError) {
       const isApiError = axios.isAxiosError<{ detail?: unknown }>(requestError);
       const detail = isApiError ? requestError.response?.data?.detail : undefined;
 
       console.error("Mark as paid failed:", isApiError ? requestError.response?.status : requestError);
-      setActionError(
+      const message =
         isApiError && !requestError.response
           ? "Cannot reach the server. Check that the backend is running."
           : isApiError && requestError.response?.status === 409
             ? "This contribution is already marked as paid. Go back and reopen it to refresh."
             : typeof detail === "string"
               ? detail
-              : "Could not mark this contribution as paid. Please try again.",
-      );
+              : "Failed to mark payment as paid. Please try again.";
+      setActionError(message);
+      if (Platform.OS !== "web") Alert.alert("Error", message);
     } finally {
       setIsSaving(false);
     }
@@ -155,17 +187,79 @@ export default function ContributionDetailsScreen() {
   function confirmMarkAsPaid() {
     if (isSaving || !contribution) return;
 
-    const message = `Confirm that you have received ${formatTsh(contribution.amount)} from ${contribution.guest_name}. It will be counted as paid in the event totals.`;
+    const message = `Are you sure this payment has been verified?\n\n${formatTsh(contribution.amount)} from ${contribution.guest_name}.`;
 
     if (Platform.OS === "web") {
-      if (window.confirm(`Mark as Paid\n\n${message}`)) void performMarkAsPaid();
+      if (window.confirm(`Confirm Payment\n\n${message}`)) void performMarkAsPaid();
       return;
     }
 
-    Alert.alert("Mark as Paid", message, [
+    Alert.alert("Confirm Payment", message, [
       { text: "Cancel", style: "cancel" },
-      { text: "Confirm payment", onPress: () => void performMarkAsPaid() },
+      { text: "Yes, Mark as Paid", onPress: () => void performMarkAsPaid() },
     ]);
+  }
+
+  async function performReject(reason: string) {
+    if (isSaving || !isPositiveId(contributionId)) return;
+
+    setIsSaving(true);
+    setRejectError("");
+
+    try {
+      // The backend has a dedicated reject endpoint that requires a reason and
+      // sets the status to "rejected" itself.
+      const response = await api.post<EventContribution>(`/contributions/${contributionId}/reject`, {
+        rejection_reason: reason,
+      });
+
+      console.log("Contribution rejected:", response.data);
+      setContribution((current) => (current ? { ...current, ...response.data } : current));
+      setRejectReason("");
+      setShowRejectModal(false);
+    } catch (requestError) {
+      const isApiError = axios.isAxiosError<{ detail?: unknown }>(requestError);
+      const detail = isApiError ? requestError.response?.data?.detail : undefined;
+
+      console.error("Reject payment failed:", isApiError ? requestError.response?.status : requestError);
+      setRejectError(
+        isApiError && !requestError.response
+          ? "Cannot reach the server. Check that the backend is running."
+          : typeof detail === "string"
+            ? detail
+            : "Could not reject this payment. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function openRejectModal() {
+    if (isSaving) return;
+
+    setRejectReason("");
+    setRejectError("");
+    setShowRejectModal(true);
+  }
+
+  function closeRejectModal() {
+    if (isSaving) return;
+
+    setShowRejectModal(false);
+    setRejectReason("");
+    setRejectError("");
+  }
+
+  function submitReject() {
+    if (isSaving || !contribution) return;
+
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setRejectError("Please enter a reason for rejecting this payment.");
+      return;
+    }
+
+    void performReject(reason);
   }
 
   const status = (contribution?.payment_status ?? "").trim().toLowerCase() || "pending";
@@ -206,7 +300,7 @@ export default function ContributionDetailsScreen() {
             <>
               <Text style={styles.amount}>{formatTsh(contribution.amount)}</Text>
               <View style={[styles.badge, getBadgeStyle(status)]}>
-                <Text style={[styles.badgeText, getBadgeTextStyle(status)]}>{status.replaceAll("_", " ")}</Text>
+                <Text style={[styles.badgeText, getBadgeTextStyle(status)]}>{getStatusLabel(status)}</Text>
               </View>
 
               <View style={styles.details}>
@@ -217,15 +311,44 @@ export default function ContributionDetailsScreen() {
                 <DetailRow label="Reference" value={contribution.transaction_reference || "Not provided"} />
                 <DetailRow label="Payment proof" value={contribution.has_payment_proof ? "Uploaded" : "Not uploaded"} />
                 <DetailRow label="Paid at" value={formatDateTime(contribution.paid_at)} />
-                {contribution.rejection_reason ? (
-                  <>
-                    <DetailRow label="Rejection reason" value={contribution.rejection_reason} />
-                    <DetailRow label="Rejected at" value={formatDateTime(contribution.rejected_at)} last />
-                  </>
-                ) : (
-                  <DetailRow label="Status" value={status.replaceAll("_", " ")} capitalize last />
-                )}
+                <DetailRow label="Status" value={getStatusLabel(status)} last />
               </View>
+
+              {isRejectedStatus(status) ? (
+                <View style={styles.rejectionBlock}>
+                  <Text style={styles.rejectionLabel}>REJECTION REASON</Text>
+                  <Text style={styles.rejectionText}>
+                    {contribution.rejection_reason || "No reason was recorded for this payment."}
+                  </Text>
+                  {contribution.rejected_at ? (
+                    <Text style={styles.rejectionMeta}>Rejected on {formatDateTime(contribution.rejected_at)}</Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {contribution.has_payment_proof ? (
+                <View style={styles.proofBlock}>
+                  <Text style={styles.inputLabel}>PAYMENT PROOF</Text>
+                  {proofFailed ? (
+                    <Text accessibilityLiveRegion="polite" style={styles.error}>
+                      Could not load the payment proof image.
+                    </Text>
+                  ) : authToken ? (
+                    <Image
+                      accessibilityLabel={`Payment proof from ${contribution.guest_name}`}
+                      onError={() => setProofFailed(true)}
+                      resizeMode="contain"
+                      source={{
+                        uri: `${api.defaults.baseURL}/contributions/${contribution.id}/payment-proof?v=${proofVersion}`,
+                        headers: { Authorization: `Bearer ${authToken}` },
+                      }}
+                      style={styles.proofImage}
+                    />
+                  ) : (
+                    <Text style={styles.message}>Loading proof…</Text>
+                  )}
+                </View>
+              ) : null}
 
               {status !== "paid" && status !== "confirmed" && isPositiveId(eventId) ? (
                 <Pressable
@@ -267,7 +390,18 @@ export default function ContributionDetailsScreen() {
                     onPress={confirmMarkAsPaid}
                     style={({ pressed }) => [styles.markPaidButton, pressed && styles.pressed, isSaving && styles.disabledButton]}
                   >
-                    <Text style={styles.markPaidText}>{isSaving ? "Marking as paid…" : "Mark as Paid"}</Text>
+                    <Text style={styles.markPaidText}>{isSaving ? "Working…" : "Mark as Paid"}</Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityHint="Opens a form to enter the reason for rejecting this payment"
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isSaving }}
+                    disabled={isSaving}
+                    onPress={openRejectModal}
+                    style={({ pressed }) => [styles.rejectButton, styles.rejectButtonSpaced, pressed && styles.pressed, isSaving && styles.disabledButton]}
+                  >
+                    <Text style={styles.rejectButtonText}>Reject Payment</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -284,6 +418,64 @@ export default function ContributionDetailsScreen() {
           ) : null}
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={closeRejectModal}
+        transparent
+        visible={showRejectModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Reject Payment</Text>
+            <Text style={styles.modalSubtitle}>
+              {contribution
+                ? `${formatTsh(contribution.amount)} from ${contribution.guest_name} will not be counted as paid.`
+                : "This payment will not be counted as paid."}
+            </Text>
+
+            <Text style={styles.inputLabel}>REASON FOR REJECTING</Text>
+            <TextInput
+              accessibilityLabel="Reason for rejecting this payment"
+              autoFocus
+              editable={!isSaving}
+              multiline
+              onChangeText={(text) => {
+                setRejectReason(text);
+                if (rejectError) setRejectError("");
+              }}
+              placeholder="e.g. Payment reference was not found on the statement"
+              placeholderTextColor="#827C76"
+              style={[styles.input, styles.reasonInput]}
+              value={rejectReason}
+            />
+
+            {rejectError ? (
+              <Text accessibilityLiveRegion="polite" style={styles.actionError}>{rejectError}</Text>
+            ) : null}
+
+            <View style={styles.modalActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSaving}
+                onPress={closeRejectModal}
+                style={({ pressed }) => [styles.modalCancel, pressed && styles.pressed, isSaving && styles.disabledButton]}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isSaving }}
+                disabled={isSaving}
+                onPress={submitReject}
+                style={({ pressed }) => [styles.modalReject, pressed && styles.pressed, isSaving && styles.disabledButton]}
+              >
+                <Text style={styles.rejectButtonText}>{isSaving ? "Rejecting…" : "Reject"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -305,6 +497,20 @@ function DetailRow({
       <Text style={[styles.value, capitalize && styles.capitalize]}>{value}</Text>
     </View>
   );
+}
+
+function isRejectedStatus(status: string): boolean {
+  return status === "rejected" || status === "failed";
+}
+
+function getStatusLabel(status: string): string {
+  if (status === "paid" || status === "confirmed") return "Paid";
+  if (status === "pending") return "Pending Verification";
+  if (status === "rejected") return "Rejected";
+  if (status === "failed") return "Failed";
+
+  const readable = status.replaceAll("_", " ");
+  return readable.charAt(0).toUpperCase() + readable.slice(1);
 }
 
 function getBadgeStyle(status: string) {
@@ -347,12 +553,31 @@ const styles = StyleSheet.create({
   value: { flexShrink: 1, color: colors.text, fontSize: 14, textAlign: "right" },
   capitalize: { textTransform: "capitalize" },
   verifyBlock: { marginTop: 20 },
+  proofBlock: { marginTop: 20 },
+  rejectionBlock: { marginTop: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.danger, backgroundColor: "#351F1D" },
+  rejectionLabel: { color: colors.danger, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  rejectionText: { color: colors.text, fontSize: 14, lineHeight: 21 },
+  rejectionMeta: { color: colors.textMuted, fontSize: 11, marginTop: 10 },
+  proofImage: { width: "100%", height: 400, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(255,255,255,0.035)" },
   inputLabel: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
   input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 14 },
   actionError: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 12 },
   markPaidButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accent },
   markPaidText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
   pressed: { opacity: 0.78 },
+  rejectButtonSpaced: { marginTop: 12 },
+  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20, backgroundColor: "rgba(0,0,0,0.6)" },
+  modalCard: { width: "100%", maxWidth: 440, padding: 22, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  modalTitle: { color: colors.text, fontSize: 20, fontWeight: "700" },
+  modalSubtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 16 },
+  modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
+  modalCancel: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accentSoft },
+  modalCancelText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
+  modalReject: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 11, borderWidth: 1, borderColor: colors.danger, backgroundColor: "#351F1D" },
+  rejectLabel: { marginTop: 22 },
+  reasonInput: { minHeight: 76, paddingVertical: 12, textAlignVertical: "top" },
+  rejectButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, borderWidth: 1, borderColor: colors.danger, backgroundColor: "#351F1D" },
+  rejectButtonText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
   disabledButton: { opacity: 0.55 },
   guestButton: { alignSelf: "flex-start", minHeight: 40, justifyContent: "center", marginTop: 20, paddingHorizontal: 16, borderRadius: 10, backgroundColor: colors.accentSoft },
   guestButtonText: { color: colors.accent, fontSize: 13, fontWeight: "700" },

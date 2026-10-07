@@ -65,6 +65,30 @@ function formatTsh(amount: number | string): string {
     : `TSh ${amount}`;
 }
 
+type PaymentKey = "paid" | "pending" | "rejected" | "failed";
+
+function getPaymentKey(status: string | null): PaymentKey {
+  const key = (status ?? "").trim().toLowerCase();
+
+  if (key === "paid" || key === "confirmed") return "paid";
+  if (key === "rejected") return "rejected";
+  if (key === "failed") return "failed";
+  return "pending";
+}
+
+function getPaymentLabel(key: PaymentKey): string {
+  if (key === "paid") return "✅ Paid";
+  if (key === "rejected") return "❌ Rejected";
+  if (key === "failed") return "❌ Failed";
+  return "⏳ Pending";
+}
+
+function getPaymentColor(key: PaymentKey): string {
+  if (key === "paid") return colors.success;
+  if (key === "rejected" || key === "failed") return colors.danger;
+  return colors.accent;
+}
+
 export default function GuestDetailsScreen() {
   const params = useLocalSearchParams<{ guestId: string; eventId: string }>();
   const guestId = firstParam(params.guestId);
@@ -201,10 +225,19 @@ export default function GuestDetailsScreen() {
       ? rsvp.status.replaceAll("_", " ")
       : "Not responded";
   const isCheckedIn = guest?.check_in_status === "checked_in";
-  const totalRecorded = (contributionSummary?.contributions ?? []).reduce((total, contribution) => {
+  // Totals come from the contribution list itself. The backend's "pending" total is
+  // expected minus paid, which would wrongly include rejected amounts.
+  const guestAmounts = { paid: 0, pending: 0, rejected: 0 };
+  for (const contribution of contributionSummary?.contributions ?? []) {
     const amount = Number(contribution.amount);
-    return total + (Number.isFinite(amount) ? amount : 0);
-  }, 0);
+    const value = Number.isFinite(amount) ? amount : 0;
+    const key = getPaymentKey(contribution.payment_status);
+
+    if (key === "paid") guestAmounts.paid += value;
+    else if (key === "rejected" || key === "failed") guestAmounts.rejected += value;
+    else guestAmounts.pending += value;
+  }
+  const totalRecorded = guestAmounts.paid + guestAmounts.pending + guestAmounts.rejected;
 
   return (
     <View style={styles.container}>
@@ -346,37 +379,58 @@ export default function GuestDetailsScreen() {
                       </View>
                       <View style={styles.totalCard}>
                         <Text style={styles.totalLabel}>Paid</Text>
-                        <Text style={styles.totalValue}>{formatTsh(contributionSummary.total_paid)}</Text>
+                        <Text style={styles.totalValue}>{formatTsh(guestAmounts.paid)}</Text>
                       </View>
                       <View style={styles.totalCard}>
                         <Text style={styles.totalLabel}>Pending</Text>
-                        <Text style={styles.totalValue}>{formatTsh(contributionSummary.total_pending)}</Text>
+                        <Text style={styles.totalValue}>{formatTsh(guestAmounts.pending)}</Text>
                       </View>
+                      {guestAmounts.rejected > 0 ? (
+                        <View style={styles.totalCard}>
+                          <Text style={styles.totalLabel}>Rejected</Text>
+                          <Text style={[styles.totalValue, { color: colors.danger }]}>{formatTsh(guestAmounts.rejected)}</Text>
+                        </View>
+                      ) : null}
                     </View>
 
                     {contributionSummary.contributions.length === 0 ? (
                       <Text style={styles.emptyState}>No contributions recorded for this guest yet.</Text>
                     ) : null}
 
-                    {contributionSummary.contributions.map((contribution) => (
-                      <View key={contribution.id} style={styles.contributionCard}>
-                        <View style={styles.row}>
-                          <Text style={styles.contributionAmount}>{formatTsh(contribution.amount)}</Text>
-                          <Text style={styles.contributionStatus}>
-                            {contribution.payment_status.replaceAll("_", " ")}
+                    {contributionSummary.contributions.length > 0 ? (
+                      <Text style={styles.historyTitle}>CONTRIBUTION HISTORY</Text>
+                    ) : null}
+
+                    {contributionSummary.contributions.map((contribution) => {
+                      const paymentKey = getPaymentKey(contribution.payment_status);
+
+                      return (
+                        <Pressable
+                          accessibilityHint="Opens the payment details, proof and status for this contribution"
+                          accessibilityRole="button"
+                          key={contribution.id}
+                          onPress={() => router.push(`/event/contribution/${contribution.id}?eventId=${guest.event_id}`)}
+                          style={({ pressed }) => [styles.contributionCard, pressed && styles.pressed]}
+                        >
+                          <View style={styles.row}>
+                            <Text style={styles.contributionAmount}>{formatTsh(contribution.amount)}</Text>
+                            <Text style={[styles.contributionStatus, { color: getPaymentColor(paymentKey) }]}>
+                              {getPaymentLabel(paymentKey)}
+                            </Text>
+                          </View>
+                          <Text style={styles.contributionMeta}>
+                            {contribution.payment_method.replaceAll("_", " ")}
                           </Text>
-                        </View>
-                        <Text style={styles.contributionMeta}>
-                          {contribution.payment_method.replaceAll("_", " ")}
-                        </Text>
-                        {contribution.transaction_reference ? (
-                          <Text style={styles.contributionMeta}>Ref: {contribution.transaction_reference}</Text>
-                        ) : null}
-                        {contribution.rejection_reason ? (
-                          <Text style={styles.contributionMeta}>Rejected: {contribution.rejection_reason}</Text>
-                        ) : null}
-                      </View>
-                    ))}
+                          {contribution.transaction_reference ? (
+                            <Text style={styles.contributionNote}>Ref: {contribution.transaction_reference}</Text>
+                          ) : null}
+                          {(paymentKey === "rejected" || paymentKey === "failed") && contribution.rejection_reason ? (
+                            <Text style={styles.contributionNote}>Reason: {contribution.rejection_reason}</Text>
+                          ) : null}
+                          <Text style={styles.viewDetails}>View details  ›</Text>
+                        </Pressable>
+                      );
+                    })}
                   </>
                 ) : null}
 
@@ -501,6 +555,10 @@ const styles = StyleSheet.create({
   contributionAmount: { color: colors.text, fontSize: 16, fontWeight: "700" },
   contributionStatus: { color: colors.accent, fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
   contributionMeta: { color: colors.textMuted, fontSize: 12, marginTop: 7, textTransform: "capitalize" },
+  contributionNote: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 7 },
+  historyTitle: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.1, marginTop: 18 },
+  viewDetails: { color: colors.accent, fontSize: 12, fontWeight: "700", marginTop: 12 },
+  pressed: { opacity: 0.78 },
   addButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 16, borderRadius: 11, backgroundColor: colors.accent },
   addButtonText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
 });
