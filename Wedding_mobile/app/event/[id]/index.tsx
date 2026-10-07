@@ -606,6 +606,15 @@ export default function EventDetailsScreen() {
 
                 {isContributionsLoading ? <Text style={styles.message}>Loading contributions…</Text> : null}
 
+                <Pressable
+                  accessibilityHint="Opens the list of contributions that are not yet confirmed as paid"
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/event/pending-contributions?id=${event.id}`)}
+                  style={styles.guestCheckInButton}
+                >
+                  <Text style={styles.guestCheckInButtonText}>Pending Contributions</Text>
+                </Pressable>
+
                 {!isContributionsLoading && contributionsError ? (
                   <View>
                     <Text accessibilityLiveRegion="polite" style={styles.error}>{contributionsError}</Text>

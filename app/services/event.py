@@ -4,15 +4,37 @@ from app.models.event import Event
 from app.schemas.event import EventCreate, EventUpdate
 
 
+def _event_couple_names(event_data: EventCreate | EventUpdate) -> tuple[str, str, str]:
+    if event_data.couple_names is not None:
+        groom_name, bride_name = (
+            part.strip() for part in event_data.couple_names.split("&", maxsplit=1)
+        )
+        return groom_name, bride_name, f"{groom_name} & {bride_name}"
+
+    groom_name = (event_data.groom_name or "").strip()
+    bride_name = (event_data.bride_name or "").strip()
+    return groom_name, bride_name, f"{groom_name} & {bride_name}"
+
+
+def _event_venue(event_data: EventCreate | EventUpdate) -> str:
+    return (event_data.venue or event_data.venue_name or "").strip()
+
+
 def create_event(db: Session, event_data: EventCreate, user_id: int):
+    groom_name, bride_name, couple_names = _event_couple_names(event_data)
+    venue = _event_venue(event_data)
     new_event = Event(
-        groom_name=event_data.groom_name,
-        bride_name=event_data.bride_name,
+        name=(event_data.name or f"{couple_names} Wedding").strip(),
+        couple_names=couple_names,
+        groom_name=groom_name,
+        bride_name=bride_name,
         event_date=event_data.event_date,
         event_time=event_data.event_time,
-        venue_name=event_data.venue_name,
-        venue_address=event_data.venue_address,
+        venue_name=venue,
+        venue_address=(event_data.venue_address or "").strip(),
         status=event_data.status.value,
+        description=(event_data.description or "").strip() or None,
+        target_contribution=event_data.target_contribution,
         user_id=user_id,
     )
     db.add(new_event)
@@ -56,13 +78,36 @@ def update_event(db: Session, event_id: int, event_data: EventUpdate, user_id: i
     if event is None:
         return None
 
-    event.groom_name = event_data.groom_name
-    event.bride_name = event_data.bride_name
+    previous_couple_names = event.couple_names
+    previous_default_name = f"{previous_couple_names} Wedding"
+    groom_name, bride_name, couple_names = _event_couple_names(event_data)
+
+    event.groom_name = groom_name
+    event.bride_name = bride_name
+    event.couple_names = couple_names
+    if event_data.name is not None:
+        event.name = event_data.name.strip()
+    elif event.name == previous_default_name and couple_names != previous_couple_names:
+        event.name = f"{couple_names} Wedding"
     event.event_date = event_data.event_date
-    event.event_time = event_data.event_time
-    event.venue_name = event_data.venue_name
-    event.venue_address = event_data.venue_address
-    event.status = event_data.status.value
+    if event_data.event_time is not None:
+        event.event_time = event_data.event_time
+
+    if event_data.venue is not None:
+        event.venue_name = event_data.venue.strip()
+        if "venue_address" not in event_data.model_fields_set:
+            event.venue_address = ""
+    elif event_data.venue_name is not None:
+        event.venue_name = event_data.venue_name.strip()
+
+    if "venue_address" in event_data.model_fields_set:
+        event.venue_address = (event_data.venue_address or "").strip()
+    if "description" in event_data.model_fields_set:
+        event.description = (event_data.description or "").strip() or None
+    if event_data.target_contribution is not None:
+        event.target_contribution = event_data.target_contribution
+    if event_data.status is not None:
+        event.status = event_data.status.value
 
     db.commit()
     db.refresh(event)
