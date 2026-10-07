@@ -56,6 +56,50 @@ def prepare_database():
                     "ALTER TABLE events RENAME TO events_legacy"
                 )
 
+        if "events" in inspect(connection).get_table_names():
+            columns = {
+                column[1]
+                for column in connection.exec_driver_sql("PRAGMA table_info(events)")
+            }
+            additions = {
+                "description": "VARCHAR",
+                "name": "VARCHAR(255) NOT NULL DEFAULT ''",
+                "couple_names": "VARCHAR(203) NOT NULL DEFAULT ''",
+                "target_contribution": "NUMERIC(14, 2) NOT NULL DEFAULT 0",
+            }
+
+            for column_name, definition in additions.items():
+                if column_name not in columns:
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE events ADD COLUMN {column_name} {definition}"
+                    )
+
+            connection.exec_driver_sql(
+                """
+                UPDATE events
+                SET couple_names = TRIM(groom_name) || ' & ' || TRIM(bride_name)
+                WHERE couple_names = ''
+                """
+            )
+            connection.exec_driver_sql(
+                """
+                UPDATE events
+                SET name = couple_names || ' Wedding'
+                WHERE name = ''
+                """
+            )
+
+        if "contributions" in inspect(connection).get_table_names():
+            contribution_columns = {
+                column[1]
+                for column in connection.exec_driver_sql("PRAGMA table_info(contributions)")
+            }
+
+            if "payment_proof" not in contribution_columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE contributions ADD COLUMN payment_proof VARCHAR"
+                )
+
     Base.metadata.create_all(bind=engine)
 
 

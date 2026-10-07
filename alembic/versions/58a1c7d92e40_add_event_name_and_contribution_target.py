@@ -18,23 +18,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "events",
-        sa.Column("name", sa.String(length=255), nullable=False, server_default=""),
-    )
-    op.add_column(
-        "events",
-        sa.Column("couple_names", sa.String(length=203), nullable=False, server_default=""),
-    )
-    op.add_column(
-        "events",
-        sa.Column(
+    connection = op.get_bind()
+    existing_columns = {
+        column["name"] for column in sa.inspect(connection).get_columns("events")
+    }
+    additions = {
+        "name": sa.Column(
+            "name", sa.String(length=255), nullable=False, server_default=""
+        ),
+        "couple_names": sa.Column(
+            "couple_names", sa.String(length=203), nullable=False, server_default=""
+        ),
+        "target_contribution": sa.Column(
             "target_contribution",
             sa.Numeric(precision=14, scale=2),
             nullable=False,
             server_default=sa.text("0"),
         ),
-    )
+    }
+
+    for column_name, column in additions.items():
+        if column_name not in existing_columns:
+            op.add_column("events", column)
 
     op.execute(
         """
@@ -53,6 +58,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column("events", "target_contribution")
-    op.drop_column("events", "couple_names")
-    op.drop_column("events", "name")
+    existing_columns = {
+        column["name"] for column in sa.inspect(op.get_bind()).get_columns("events")
+    }
+    for column_name in ("target_contribution", "couple_names", "name"):
+        if column_name in existing_columns:
+            op.drop_column("events", column_name)

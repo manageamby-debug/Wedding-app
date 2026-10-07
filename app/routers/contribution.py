@@ -12,6 +12,7 @@ from app.schemas.contribution import (
     ContributionCreate,
     ContributionConfirm,
     ContributionListResponse,
+    ContributionPaymentUpdate,
     ContributionPaymentResponse,
     ContributionReject,
     ContributionRejectionResponse,
@@ -43,6 +44,31 @@ def create_contribution(
         raise HTTPException(status_code=404, detail="Guest not found")
 
     return contribution
+
+
+@router.put(
+    "/contributions/{contribution_id}",
+    response_model=ContributionResponse,
+)
+def update_contribution_payment(
+    payment_data: ContributionPaymentUpdate,
+    contribution: Contribution = Depends(require_contribution_owner),
+    db: Session = Depends(get_db),
+):
+    contribution, status = contribution_service.update_contribution_payment(
+        db,
+        contribution,
+        payment_data,
+    )
+
+    if status == "already_paid":
+        raise HTTPException(
+            status_code=409,
+            detail="Paid contribution payment details cannot be changed",
+        )
+
+    return contribution
+
 
 @router.post(
     "/contributions/{contribution_id}/confirm",

@@ -27,3 +27,9 @@ class Contribution(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     rejected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # File name (not a path or URL) of the uploaded payment proof image.
+    payment_proof: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    @property
+    def has_payment_proof(self) -> bool:
+        return bool(self.payment_proof)

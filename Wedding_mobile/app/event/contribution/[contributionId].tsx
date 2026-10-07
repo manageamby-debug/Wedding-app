@@ -1,6 +1,6 @@
 import axios from "axios";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import api from "../../../src/services/api";
 import { colors } from "../../../src/constants/theme";
@@ -39,6 +39,21 @@ function formatDateTime(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("en-GB");
 }
 
+function formatPaymentMethod(method: string | null): string {
+  if (!method) return "Not provided";
+
+  const labels: Record<string, string> = {
+    mpesa: "M-Pesa",
+    tigopesa: "Tigo Pesa",
+    airtel_money: "Airtel Money",
+    bank: "Bank",
+    cash: "Cash",
+  };
+  const key = method.trim().toLowerCase();
+
+  return labels[key] ?? method.replaceAll("_", " ");
+}
+
 export default function ContributionDetailsScreen() {
   const params = useLocalSearchParams<{ contributionId: string; eventId: string }>();
   const contributionId = firstParam(params.contributionId);
@@ -48,6 +63,9 @@ export default function ContributionDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [retryCount, setRetryCount] = useState(0);
+  const [reference, setReference] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -74,6 +92,7 @@ export default function ContributionDetailsScreen() {
         const found = response.data.find((item) => item.id === Number(contributionId)) ?? null;
         console.log("Contribution details:", found);
         setContribution(found);
+        setReference(found?.transaction_reference ?? "");
         setErrorMessage(found ? "" : "Contribution not found in this event.");
       } catch (requestError) {
         if (!isActive) return;
@@ -97,6 +116,56 @@ export default function ContributionDetailsScreen() {
       isActive = false;
     };
   }, [contributionId, eventId, retryCount]));
+
+  async function performMarkAsPaid() {
+    if (isSaving || !isPositiveId(contributionId)) return;
+
+    setIsSaving(true);
+    setActionError("");
+
+    try {
+      // The backend replaces the stored reference with whatever we send, so the
+      // field is pre-filled with the existing reference to avoid wiping it.
+      const response = await api.post<EventContribution>(`/contributions/${contributionId}/confirm`, {
+        transaction_reference: reference.trim() || null,
+      });
+
+      console.log("Contribution marked as paid:", response.data);
+      setContribution((current) => (current ? { ...current, ...response.data } : current));
+    } catch (requestError) {
+      const isApiError = axios.isAxiosError<{ detail?: unknown }>(requestError);
+      const detail = isApiError ? requestError.response?.data?.detail : undefined;
+
+      console.error("Mark as paid failed:", isApiError ? requestError.response?.status : requestError);
+      setActionError(
+        isApiError && !requestError.response
+          ? "Cannot reach the server. Check that the backend is running."
+          : isApiError && requestError.response?.status === 409
+            ? "This contribution is already marked as paid. Go back and reopen it to refresh."
+            : typeof detail === "string"
+              ? detail
+              : "Could not mark this contribution as paid. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function confirmMarkAsPaid() {
+    if (isSaving || !contribution) return;
+
+    const message = `Confirm that you have received ${formatTsh(contribution.amount)} from ${contribution.guest_name}. It will be counted as paid in the event totals.`;
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Mark as Paid\n\n${message}`)) void performMarkAsPaid();
+      return;
+    }
+
+    Alert.alert("Mark as Paid", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Confirm payment", onPress: () => void performMarkAsPaid() },
+    ]);
+  }
 
   const status = (contribution?.payment_status ?? "").trim().toLowerCase() || "pending";
 
@@ -143,7 +212,7 @@ export default function ContributionDetailsScreen() {
                 <DetailRow label="Contribution ID" value={String(contribution.id)} />
                 <DetailRow label="Event ID" value={String(eventId)} />
                 <DetailRow label="Guest" value={contribution.guest_name} />
-                <DetailRow label="Payment method" value={contribution.payment_method.replaceAll("_", " ")} capitalize />
+                <DetailRow label="Payment method" value={formatPaymentMethod(contribution.payment_method)} />
                 <DetailRow label="Reference" value={contribution.transaction_reference || "Not provided"} />
                 <DetailRow label="Paid at" value={formatDateTime(contribution.paid_at)} />
                 {contribution.rejection_reason ? (
@@ -155,6 +224,51 @@ export default function ContributionDetailsScreen() {
                   <DetailRow label="Status" value={status.replaceAll("_", " ")} capitalize last />
                 )}
               </View>
+
+              {status !== "paid" && status !== "confirmed" && isPositiveId(eventId) ? (
+                <Pressable
+                  accessibilityHint="Opens the form to enter or update the payment method and transaction reference"
+                  accessibilityRole="button"
+                  onPress={() => router.push({
+                    pathname: "/event/contribution/payment",
+                    params: { contributionId: String(contribution.id), eventId },
+                  })}
+                  style={({ pressed }) => [styles.paymentButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.paymentButtonText}>
+                    {contribution.transaction_reference ? "Update Payment Details" : "Submit Payment"}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {status === "pending" ? (
+                <View style={styles.verifyBlock}>
+                  <Text style={styles.inputLabel}>TRANSACTION REFERENCE · OPTIONAL</Text>
+                  <TextInput
+                    accessibilityLabel="Transaction reference, optional"
+                    autoCapitalize="characters"
+                    editable={!isSaving}
+                    onChangeText={setReference}
+                    placeholder="e.g. M-Pesa or bank reference"
+                    placeholderTextColor="#827C76"
+                    style={styles.input}
+                    value={reference}
+                  />
+                  {actionError ? (
+                    <Text accessibilityLiveRegion="polite" style={styles.actionError}>{actionError}</Text>
+                  ) : null}
+                  <Pressable
+                    accessibilityHint="Asks for confirmation, then records this contribution as paid"
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isSaving }}
+                    disabled={isSaving}
+                    onPress={confirmMarkAsPaid}
+                    style={({ pressed }) => [styles.markPaidButton, pressed && styles.pressed, isSaving && styles.disabledButton]}
+                  >
+                    <Text style={styles.markPaidText}>{isSaving ? "Marking as paid…" : "Mark as Paid"}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
 
               <Pressable
                 accessibilityHint={`Opens the details screen for ${contribution.guest_name}`}
@@ -230,6 +344,16 @@ const styles = StyleSheet.create({
   label: { color: colors.textMuted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
   value: { flexShrink: 1, color: colors.text, fontSize: 14, textAlign: "right" },
   capitalize: { textTransform: "capitalize" },
+  verifyBlock: { marginTop: 20 },
+  inputLabel: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 14 },
+  actionError: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  markPaidButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accent },
+  markPaidText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
+  pressed: { opacity: 0.78 },
+  disabledButton: { opacity: 0.55 },
   guestButton: { alignSelf: "flex-start", minHeight: 40, justifyContent: "center", marginTop: 20, paddingHorizontal: 16, borderRadius: 10, backgroundColor: colors.accentSoft },
   guestButtonText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
+  paymentButton: { minHeight: 50, alignItems: "center", justifyContent: "center", marginTop: 18, borderRadius: 11, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  paymentButtonText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
 });

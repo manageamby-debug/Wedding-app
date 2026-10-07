@@ -1,6 +1,8 @@
 import axios from "axios";
+import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -54,8 +56,29 @@ export default function AddContributionScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [transactionReference, setTransactionReference] = useState("");
   const [mode, setMode] = useState<ContributionMode>("pending");
+  const [paymentProof, setPaymentProof] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function pickPaymentProof() {
+    if (isSubmitting) return;
+
+    try {
+      // The system photo picker needs no permission prompt on current iOS and Android.
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        console.log("Payment proof selected:", result.assets[0].uri);
+        setPaymentProof(result.assets[0].uri);
+      }
+    } catch (pickerError) {
+      console.error("Pick payment proof failed:", pickerError);
+      setErrorMessage("Could not open your photo library. Please try again.");
+    }
+  }
 
   async function addContribution() {
     if (isSubmitting) return;
@@ -220,6 +243,50 @@ export default function AddContributionScreen() {
             value={transactionReference}
           />
 
+          <Text style={styles.label}>PAYMENT PROOF · OPTIONAL</Text>
+          {paymentProof ? (
+            <View style={styles.proofPreview}>
+              <Image
+                accessibilityLabel="Selected payment proof"
+                resizeMode="contain"
+                source={{ uri: paymentProof }}
+                style={styles.proofImage}
+              />
+              <View style={styles.proofCopy}>
+                <Text style={styles.proofTitle}>Payment proof selected ✓</Text>
+                <Text style={styles.helper}>Preview only for now. It is not uploaded or saved with the contribution yet.</Text>
+                <View style={styles.proofActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isSubmitting}
+                    onPress={pickPaymentProof}
+                    style={styles.proofRemoveButton}
+                  >
+                    <Text style={styles.proofRemoveText}>Choose Another</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isSubmitting}
+                    onPress={() => setPaymentProof(null)}
+                    style={styles.proofRemoveButton}
+                  >
+                    <Text style={styles.proofRemoveText}>Remove</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityHint="Opens your photos to choose a screenshot or receipt of the payment"
+              accessibilityRole="button"
+              disabled={isSubmitting}
+              onPress={pickPaymentProof}
+              style={styles.proofButton}
+            >
+              <Text style={styles.proofButtonText}>Choose Payment Proof</Text>
+            </Pressable>
+          )}
+
           {errorMessage ? (
             <Text accessibilityLiveRegion="polite" style={styles.error}>{errorMessage}</Text>
           ) : null}
@@ -263,6 +330,15 @@ const styles = StyleSheet.create({
   methodOption: { minHeight: 36, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.card },
   methodText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 16 },
+  proofButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginBottom: 18, borderWidth: 1, borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
+  proofButtonText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
+  proofPreview: { flexDirection: "row", gap: 12, marginBottom: 18, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
+  proofImage: { width: 120, height: 160, borderRadius: 8, backgroundColor: colors.surface },
+  proofActions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  proofCopy: { flex: 1 },
+  proofTitle: { color: colors.success, fontSize: 13, fontWeight: "700", marginBottom: 4 },
+  proofRemoveButton: { alignSelf: "flex-start", minHeight: 32, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9, backgroundColor: colors.accentSoft },
+  proofRemoveText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   submitButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accent },
   submitText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
   pressed: { opacity: 0.78 },

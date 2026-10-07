@@ -27,6 +27,13 @@ class ContributionCreate(BaseModel):
     transaction_reference: str | None = None
 
 
+class ContributionPaymentUpdate(BaseModel):
+    payment_method: PaymentMethod
+    transaction_reference: str = Field(min_length=1, max_length=255)
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
 class ContributionResponse(BaseModel):
     id: int
     guest_id: int

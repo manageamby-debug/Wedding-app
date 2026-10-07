@@ -7,7 +7,7 @@ from sqlalchemy import func, case
 from app.models.contributions import Contribution
 from app.models.event import Event
 from app.models.guest import Guest
-from app.schemas.contribution import ContributionCreate
+from app.schemas.contribution import ContributionCreate, ContributionPaymentUpdate
 from app.services.payment_audit import create_payment_audit
 
 
@@ -42,6 +42,26 @@ def create_contribution(
     db.refresh(new_contribution)
 
     return new_contribution
+
+
+def update_contribution_payment(
+    db: Session,
+    contribution: Contribution,
+    payment_data: ContributionPaymentUpdate,
+):
+    if contribution.payment_status in ("paid", "confirmed"):
+        return contribution, "already_paid"
+
+    contribution.payment_method = payment_data.payment_method.value
+    contribution.transaction_reference = payment_data.transaction_reference
+    contribution.payment_status = "pending"
+    contribution.rejection_reason = None
+    contribution.rejected_at = None
+
+    db.commit()
+    db.refresh(contribution)
+
+    return contribution, "pending"
 
 
 def confirm_contribution(
