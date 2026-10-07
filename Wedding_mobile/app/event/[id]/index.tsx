@@ -1230,7 +1230,6 @@ const styles = StyleSheet.create({
   sortGuestsLabel: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: 5 },
   guestSortButtons: { gap: 4, marginBottom: 10 },
   guestResultCount: { color: colors.text, fontSize: 13, fontWeight: "700", marginBottom: 10 },
-  guestSearchEmpty: { color: colors.textMuted, textAlign: "center", marginTop: 20, fontSize: 13 },
   guestCount: { overflow: "hidden", borderRadius: 20, backgroundColor: colors.accentSoft, color: colors.accent, paddingHorizontal: 10, paddingVertical: 4, fontSize: 12, fontWeight: "700" },
   emptyState: { color: colors.textMuted, fontSize: 13, lineHeight: 20, paddingVertical: 8 },
   guestCard: { marginTop: 10, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
