@@ -25,3 +25,8 @@ export function onSessionExpired(listener: SessionExpiredListener): () => void {
 export function notifySessionExpired(): void {
   sessionExpiredListeners.forEach((listener) => listener());
 }
+
+
+export async function signOut(): Promise<void> {
+  await removeToken();
+}

@@ -8,12 +8,21 @@ import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import EventCard from "../components/EventCard";
 import LoadingState from "../components/LoadingState";
+import { signOut } from "../src/services/auth";
 
 type DashboardUser = {
   id: number;
   full_name: string;
   email: string;
   role: string;
+};
+
+type EventSummary = {
+  event: { id: number };
+  guests: { total: number };
+  rsvp: { attending: number; not_attending: number; maybe: number; no_response: number };
+  check_in: { checked_in: number; not_checked_in: number; percentage: number };
+  contributions: { contributors: number; total_expected: number; total_paid: number; total_pending: number };
 };
 
 type DashboardEvent = {
@@ -35,10 +44,12 @@ type DashboardEvent = {
 export default function Dashboard() {
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [events, setEvents] = useState<DashboardEvent[]>([]);
+  const [summaries, setSummaries] = useState<EventSummary[]>([]);
   const [isUserLoading, setIsUserLoading] = useState(true);
   const [isEventsLoading, setIsEventsLoading] = useState(true);
   const [userError, setUserError] = useState("");
   const [eventsError, setEventsError] = useState("");
+  const [statsError, setStatsError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
   useFocusEffect(useCallback(() => {
@@ -48,6 +59,7 @@ export default function Dashboard() {
     setIsEventsLoading(true);
     setUserError("");
     setEventsError("");
+    setStatsError(false);
 
     async function loadUser() {
       try {
@@ -79,8 +91,19 @@ export default function Dashboard() {
 
         if (!isActive) return;
 
-        console.log("Dashboard events:", response.data);
         setEvents(response.data);
+        const summaryResults = await Promise.allSettled(
+          response.data.map((event) =>
+            api.get<EventSummary>(`/events/${event.id}/dashboard`).then((result) => result.data),
+          ),
+        );
+        if (!isActive) return;
+        setSummaries(
+          summaryResults.flatMap((result) =>
+            result.status === "fulfilled" ? [result.value] : [],
+          ),
+        );
+        setStatsError(summaryResults.some((result) => result.status === "rejected"));
       } catch (requestError) {
         if (!isActive) return;
 
@@ -118,10 +141,34 @@ export default function Dashboard() {
     );
   }
 
+  async function handleSignOut() {
+    try {
+      await signOut();
+      router.replace("/login");
+    } catch {
+      setUserError("Could not sign out. Please try again.");
+    }
+  }
+
+  const portfolio = summaries.reduce(
+    (total, summary) => ({
+      guests: total.guests + summary.guests.total,
+      attending: total.attending + summary.rsvp.attending,
+      checkedIn: total.checkedIn + summary.check_in.checked_in,
+      totalPaid: total.totalPaid + summary.contributions.total_paid,
+    }),
+    { guests: 0, attending: 0, checkedIn: 0, totalPaid: 0 },
+  );
+
   if (events.length === 0) {
     return (
       <View style={styles.emptyDashboard}>
-        <Text style={styles.emptyDashboardTitle}>Dashboard</Text>
+        <View style={styles.emptyHeader}>
+          <Text style={styles.emptyDashboardTitle}>Dashboard</Text>
+          <Pressable accessibilityRole="button" onPress={handleSignOut} style={styles.signOutButton}>
+            <Text style={styles.signOutText}>Sign out</Text>
+          </Pressable>
+        </View>
         <EmptyState
           title="No Events Yet"
           message="Create your first wedding event to get started."
@@ -145,7 +192,12 @@ export default function Dashboard() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <Text style={styles.eyebrow}>EVERAFTER · ORGANIZER</Text>
-          <Text style={styles.title}>{user ? `Welcome, ${firstName}` : "Your dashboard"}</Text>
+          <View style={styles.welcomeRow}>
+            <Text style={styles.title}>{user ? `Welcome, ${firstName}` : "Your dashboard"}</Text>
+            <Pressable accessibilityRole="button" onPress={handleSignOut} style={styles.signOutButton}>
+              <Text style={styles.signOutText}>Sign out</Text>
+            </Pressable>
+          </View>
 
           {isUserLoading ? <Text style={styles.status}>Loading your profile…</Text> : null}
           {userError ? (
@@ -177,6 +229,22 @@ export default function Dashboard() {
               </View>
             </View>
           ) : null}
+
+          {statsError ? (
+            <View style={styles.statsError}>
+              <Text accessibilityLiveRegion="polite" style={styles.error}>Some event totals could not be loaded.</Text>
+              <Pressable accessibilityRole="button" onPress={() => setRetryCount((count) => count + 1)} style={styles.retryButton}>
+                <Text style={styles.retryButtonText}>Refresh totals</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View accessibilityLabel="Wedding overview" style={styles.metricsGrid}>
+            <Metric label="Guests" value={portfolio.guests.toLocaleString()} />
+            <Metric label="RSVP attending" value={portfolio.attending.toLocaleString()} />
+            <Metric label="Checked in" value={portfolio.checkedIn.toLocaleString()} />
+            <Metric label="Contributions paid" value={`TSh ${portfolio.totalPaid.toLocaleString("en-TZ")}`} />
+          </View>
 
           <View style={styles.eventsSection}>
             <View style={styles.eventsHeading}>
@@ -231,12 +299,22 @@ export default function Dashboard() {
   );
 }
 
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.metricCard}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit style={styles.metricValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   emptyDashboard: {
     flex: 1,
     padding: 20,
     backgroundColor: colors.background,
   },
+  emptyHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   emptyDashboardTitle: {
     color: colors.text,
     fontSize: 28,
@@ -270,7 +348,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1.6,
     marginBottom: 12,
   },
+  welcomeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  signOutButton: { minHeight: 36, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 9 },
+  signOutText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   title: {
+    flex: 1,
     color: colors.text,
     fontSize: 24,
     fontWeight: "700",
@@ -326,6 +408,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "capitalize",
   },
+  statsError: { marginTop: 14 },
+  metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 22 },
+  metricCard: { flexGrow: 1, flexBasis: "45%", minHeight: 82, justifyContent: "center", padding: 13, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
+  metricLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "600" },
+  metricValue: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 7 },
   eventsSection: {
     marginTop: 24,
     paddingTop: 20,

@@ -18,6 +18,9 @@ type EventStatus = "draft" | "published" | "completed" | "cancelled";
 
 type EventResponse = {
   id: number;
+  name: string;
+  description: string | null;
+  target_contribution: number | string;
   groom_name: string;
   bride_name: string;
   event_date: string;
@@ -46,6 +49,9 @@ export default function EditEventScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const eventId = firstParam(params.id);
 
+  const [eventName, setEventName] = useState("");
+  const [description, setDescription] = useState("");
+  const [targetContribution, setTargetContribution] = useState("0");
   const [groomName, setGroomName] = useState("");
   const [brideName, setBrideName] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -79,6 +85,9 @@ export default function EditEventScreen() {
         if (!isActive) return;
 
         const event = response.data;
+        setEventName(event.name);
+        setDescription(event.description ?? "");
+        setTargetContribution(String(event.target_contribution));
         setGroomName(event.groom_name);
         setBrideName(event.bride_name);
         setEventDate(event.event_date);
@@ -117,13 +126,19 @@ export default function EditEventScreen() {
       return;
     }
 
+    const name = eventName.trim();
     const groom = groomName.trim();
     const bride = brideName.trim();
+    const target = Number(targetContribution.trim());
     const date = eventDate.trim();
     const time = eventTime.trim();
     const venue = venueName.trim();
     const address = venueAddress.trim();
 
+    if (name.length < 2 || name.length > 255) {
+      setErrorMessage("Enter an event name between 2 and 255 characters.");
+      return;
+    }
     if (groom.length < 2 || groom.length > 100) {
       setErrorMessage("The groom's name must be between 2 and 100 characters.");
       return;
@@ -148,12 +163,23 @@ export default function EditEventScreen() {
       setErrorMessage("The venue address must be between 2 and 255 characters.");
       return;
     }
+    if (!Number.isFinite(target) || target < 0 || !/^\d{1,12}(\.\d{1,2})?$/.test(targetContribution.trim())) {
+      setErrorMessage("Enter a valid contribution target with up to 2 decimal places.");
+      return;
+    }
+    if (description.trim().length > 5000) {
+      setErrorMessage("Description must be 5,000 characters or fewer.");
+      return;
+    }
 
     setErrorMessage("");
     setIsSaving(true);
 
     try {
       const response = await api.put<EventResponse>(`/events/${eventId}`, {
+        name,
+        description: description.trim() || null,
+        target_contribution: target,
         groom_name: groom,
         bride_name: bride,
         event_date: date,
@@ -232,6 +258,18 @@ export default function EditEventScreen() {
 
           {!isLoading && isLoaded ? (
             <>
+              <Text style={styles.label}>EVENT NAME</Text>
+              <TextInput
+                accessibilityLabel="Event name"
+                editable={!isSaving}
+                maxLength={255}
+                onChangeText={setEventName}
+                placeholder="Wedding celebration"
+                placeholderTextColor="#827C76"
+                style={styles.input}
+                value={eventName}
+              />
+
               <Text style={styles.label}>GROOM NAME</Text>
               <TextInput
                 accessibilityLabel="Groom name"
@@ -308,6 +346,32 @@ export default function EditEventScreen() {
                 value={venueAddress}
               />
 
+              <Text style={styles.label}>CONTRIBUTION TARGET · TSh</Text>
+              <TextInput
+                accessibilityLabel="Contribution target"
+                editable={!isSaving}
+                keyboardType="decimal-pad"
+                onChangeText={setTargetContribution}
+                placeholder="0"
+                placeholderTextColor="#827C76"
+                style={styles.input}
+                value={targetContribution}
+              />
+
+              <Text style={styles.label}>DESCRIPTION · OPTIONAL</Text>
+              <TextInput
+                accessibilityLabel="Event description"
+                editable={!isSaving}
+                maxLength={5000}
+                multiline
+                onChangeText={setDescription}
+                placeholder="Share details about the celebration"
+                placeholderTextColor="#827C76"
+                style={[styles.input, styles.multilineInput]}
+                textAlignVertical="top"
+                value={description}
+              />
+
               <Text style={styles.label}>STATUS</Text>
               <View style={styles.statusRow}>
                 {STATUSES.map((option) => (
@@ -363,6 +427,7 @@ const styles = StyleSheet.create({
   retryText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
   label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
   input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
+  multilineInput: { minHeight: 110, paddingTop: 12 },
   statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
   statusChip: { paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "#3B3531", borderRadius: 20 },
   statusChipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
