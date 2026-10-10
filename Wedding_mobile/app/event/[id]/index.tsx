@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import EmptyState from "../../../components/EmptyState";
@@ -92,6 +92,21 @@ export default function EventDetailsScreen() {
   const [deleteError, setDeleteError] = useState("");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [statusUpdateError, setStatusUpdateError] = useState("");
+  const scrollViewRef = useRef<ScrollView>(null);
+  const cardOffset = useRef(0);
+  const guestsOffset = useRef(0);
+
+  function openGuestsSection() {
+    if (!isGuestsLoading && !guestsError && guests.length === 0 && eventId) {
+      router.push(`/event/${eventId}/add-guest`);
+      return;
+    }
+
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(0, cardOffset.current + guestsOffset.current - 12),
+      animated: true,
+    });
+  }
 
   useFocusEffect(useCallback(() => {
     let isActive = true;
@@ -444,8 +459,11 @@ export default function EventDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.card}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View
+          onLayout={(event) => { cardOffset.current = event.nativeEvent.layout.y; }}
+          style={styles.card}
+        >
           <Pressable
             accessibilityRole="button"
             onPress={() => router.replace("/dashboard")}
@@ -602,6 +620,57 @@ export default function EventDetailsScreen() {
                 <Text accessibilityLiveRegion="polite" style={[styles.error, { marginTop: 10 }]}>{deleteError}</Text>
               ) : null}
 
+              <View style={styles.quickActionsSection}>
+                <Text style={styles.quickActionsTitle}>Manage this event</Text>
+                <View style={styles.quickActionsGrid}>
+                  <Pressable
+                    accessibilityHint="Opens the form to add a guest to this event"
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/${event.id}/add-guest`)}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>👤</Text>
+                    <Text style={styles.quickActionLabel}>Add Guest</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityHint="Scrolls to the guest list, where you can manage guests and their RSVP or invitation"
+                    accessibilityRole="button"
+                    onPress={openGuestsSection}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>👥</Text>
+                    <Text style={styles.quickActionLabel}>Guests & RSVP</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityHint="Opens pending and recorded payments for this event"
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/pending-contributions?id=${event.id}`)}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>💰</Text>
+                    <Text style={styles.quickActionLabel}>Payments</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityHint="Opens guest check-in search for this event"
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/check-in-search?id=${event.id}`)}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>🔎</Text>
+                    <Text style={styles.quickActionLabel}>Check-in</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityHint="Scrolls to the guest list, where you can choose a guest and create their invitation"
+                    accessibilityRole="button"
+                    onPress={openGuestsSection}
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
+                  >
+                    <Text style={styles.quickActionEmoji}>🎟</Text>
+                    <Text style={styles.quickActionLabel}>Invite Guest</Text>
+                  </Pressable>
+                </View>
+              </View>
+
               <View style={styles.summaryPanel}>
                 <View style={styles.summaryHeader}>
                   <View style={styles.summaryHeaderCopy}>
@@ -688,55 +757,10 @@ export default function EventDetailsScreen() {
                 />
               </View>
 
-              {/* ── Quick Actions ── */}
-              <View style={styles.quickActionsSection}>
-                <Text style={styles.quickActionsTitle}>Quick Actions</Text>
-                <View style={styles.quickActionsGrid}>
-                  <Pressable
-                    accessibilityHint="Opens the guest check-in search screen"
-                    accessibilityRole="button"
-                    onPress={() => router.push(`/event/check-in-search?id=${event.id}`)}
-                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
-                  >
-                    <Text style={styles.quickActionEmoji}>🔎</Text>
-                    <Text style={styles.quickActionLabel}>Check-in Guest</Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityHint="Opens the pending payments screen"
-                    accessibilityRole="button"
-                    onPress={() => router.push(`/event/pending-contributions?id=${event.id}`)}
-                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
-                  >
-                    <Text style={styles.quickActionEmoji}>💰</Text>
-                    <Text style={styles.quickActionLabel}>Manage Payments</Text>
-                  </Pressable>
-
-                  {!eventLocked && (
-                    <Pressable
-                      accessibilityHint="Opens the RSVP management screen"
-                      accessibilityRole="button"
-                      onPress={() => router.push(`/event/rsvp?id=${event.id}`)}
-                      style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
-                    >
-                      <Text style={styles.quickActionEmoji}>📋</Text>
-                      <Text style={styles.quickActionLabel}>Manage RSVP</Text>
-                    </Pressable>
-                  )}
-
-                  <Pressable
-                    accessibilityHint="Opens the invitations screen"
-                    accessibilityRole="button"
-                    onPress={() => router.push(`/event/invitation?id=${event.id}`)}
-                    style={({ pressed }) => [styles.quickActionBtn, pressed && styles.quickActionBtnPressed]}
-                  >
-                    <Text style={styles.quickActionEmoji}>🎟</Text>
-                    <Text style={styles.quickActionLabel}>Invitations</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.guestsSection}>
+              <View
+                onLayout={(event) => { guestsOffset.current = event.nativeEvent.layout.y; }}
+                style={styles.guestsSection}
+              >
                 <View style={styles.guestsHeading}>
                   <Text style={styles.guestsTitle}>Guests</Text>
                   {!isGuestsLoading && !guestsError ? (

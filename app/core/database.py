@@ -100,6 +100,16 @@ def prepare_database():
                     "ALTER TABLE contributions ADD COLUMN payment_proof VARCHAR"
                 )
 
+            # SQLite cannot add a UNIQUE column, so add it plain and index it separately.
+            if "snippe_reference" not in contribution_columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE contributions ADD COLUMN snippe_reference VARCHAR"
+                )
+            connection.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_contributions_snippe_reference "
+                "ON contributions (snippe_reference)"
+            )
+
     Base.metadata.create_all(bind=engine)
 
 

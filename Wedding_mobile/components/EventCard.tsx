@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { colors } from "../src/constants/theme";
 
@@ -53,6 +53,10 @@ export default function EventCard({ event }: Props) {
           🎯 Target: {Number(event.target_contribution).toLocaleString()} TSh
         </Text>
       )}
+      <View style={styles.openEvent}>
+        <Text style={styles.openEventText}>Manage event, guests and contributions</Text>
+        <Text accessibilityElementsHidden style={styles.openEventArrow}>Open →</Text>
+      </View>
     </Pressable>
   );
 }
@@ -95,4 +99,7 @@ const styles = StyleSheet.create({
   countdown: { color: colors.accent, fontSize: 12, fontWeight: "600", marginTop: 4 },
   venue: { color: colors.text, fontSize: 13, marginTop: 5 },
   target: { color: colors.text, fontSize: 13, fontWeight: "600", marginTop: 5 },
+  openEvent: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 13, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border },
+  openEventText: { flex: 1, color: colors.accent, fontSize: 12, fontWeight: "700" },
+  openEventArrow: { color: colors.accent, fontSize: 12, fontWeight: "700" },
 });

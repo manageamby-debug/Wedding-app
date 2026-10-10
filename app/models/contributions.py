@@ -29,6 +29,10 @@ class Contribution(Base):
     rejected_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # File name (not a path or URL) of the uploaded payment proof image.
     payment_proof: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Reference of the Snippe mobile-money payment started for this contribution.
+    snippe_reference: Mapped[str | None] = mapped_column(
+        String, nullable=True, unique=True, index=True
+    )
 
     @property
     def has_payment_proof(self) -> bool:
