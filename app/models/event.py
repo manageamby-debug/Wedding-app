@@ -39,3 +39,9 @@ class Event(Base):
     guests = relationship(
         "Guest", back_populates="event", cascade="all, delete-orphan"
     )
+    story_photos = relationship(
+        "StoryPhoto", back_populates="event", cascade="all, delete-orphan"
+    )
+    members = relationship(
+        "EventMember", back_populates="event", cascade="all, delete-orphan"
+    )

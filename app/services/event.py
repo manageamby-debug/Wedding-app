@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.core.event_access import event_access_filter
 from app.models.event import Event
 from app.schemas.event import EventCreate, EventUpdate
 
@@ -50,7 +51,7 @@ def get_events(
     groom_name: str | None = None,
     bride_name: str | None = None,
 ):
-    query = db.query(Event).filter(Event.user_id == user_id)
+    query = db.query(Event).filter(event_access_filter(user_id))
 
     if status is not None:
         query = query.filter(Event.status == status)

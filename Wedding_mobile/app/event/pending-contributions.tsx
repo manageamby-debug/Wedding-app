@@ -270,7 +270,7 @@ export default function PendingContributionsScreen() {
                   autoCorrect={false}
                   onChangeText={setSearch}
                   placeholder="Search name, phone or reference…"
-                  placeholderTextColor="#827C76"
+                  placeholderTextColor={colors.textMuted}
                   returnKeyType="search"
                   style={styles.searchInput}
                   value={search}
@@ -374,15 +374,15 @@ export default function PendingContributionsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 24 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 26, fontWeight: "700" },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 36, fontWeight: "700" },
   subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 20 },
   filters: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  searchInput: { flex: 1, minHeight: 46, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14 },
+  searchInput: { flex: 1, minHeight: 46, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14 },
   clearButton: { minHeight: 46, justifyContent: "center", paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.accentSoft },
   clearText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
   searchNote: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginBottom: 12 },

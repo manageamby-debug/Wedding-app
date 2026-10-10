@@ -1,3 +1,4 @@
+from app.core.event_access import event_access_filter
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -21,7 +22,7 @@ def create_contribution(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Guest.id == contribution_data.guest_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
         )
         .first()
     )
@@ -76,7 +77,7 @@ def confirm_contribution(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Contribution.id == contribution_id,
-            Event.user_id == user_id
+            event_access_filter(user_id)
         )
         .first()
     )
@@ -113,7 +114,7 @@ def get_event_contributions(
         db.query(Event)
         .filter(
             Event.id == event_id,
-            Event.user_id == user_id
+            event_access_filter(user_id)
         )
         .first()
     )
@@ -155,7 +156,7 @@ def get_event_contribution_summary(
         db.query(Event)
         .filter(
             Event.id == event_id,
-            Event.user_id == user_id
+            event_access_filter(user_id)
         )
         .first()
     )
@@ -234,7 +235,7 @@ def get_contribution_receipt(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Contribution.id == contribution_id,
-            Event.user_id == user_id
+            event_access_filter(user_id)
         )
         .first()
     )
@@ -274,7 +275,7 @@ def get_contribution_summary(
         db.query(Event)
         .filter(
             Event.id == event_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
         )
         .first()
     )
@@ -335,7 +336,7 @@ def create_manual_contribution(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Guest.id == guest_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
         )
         .first()
     )
@@ -369,7 +370,7 @@ def get_guest_contributions(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Guest.id == guest_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
         )
         .first()
     )
@@ -440,7 +441,7 @@ def reject_contribution(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Contribution.id == contribution_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
         )
         .first()
     )

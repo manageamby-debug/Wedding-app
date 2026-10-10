@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.event_access import get_accessible_event, require_event_manager
 from app.core.security import get_current_user, require_role
+from app.models.event import Event
 from app.models.user import User
 from app.schemas.event import EventCreate, EventResponse, EventStatus, EventUpdate
 from app.services import event as event_services
@@ -39,7 +41,7 @@ def get_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    event = event_services.get_event(db, event_id, current_user.id)
+    event = get_accessible_event(db, event_id, current_user.id)
 
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -52,9 +54,9 @@ def update_event(
     event_id: int,
     event_data: EventUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    manager: Event = Depends(require_event_manager),
 ):
-    event = event_services.update_event(db, event_id, event_data, current_user.id)
+    event = event_services.update_event(db, event_id, event_data, manager.user_id)
 
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -66,9 +68,9 @@ def update_event(
 def delete_event(
     event_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    manager: Event = Depends(require_event_manager),
 ):
-    event = event_services.delete_event(db, event_id, current_user.id)
+    event = event_services.delete_event(db, event_id, manager.user_id)
 
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")

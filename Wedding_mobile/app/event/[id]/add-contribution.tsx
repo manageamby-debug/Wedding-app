@@ -250,7 +250,7 @@ export default function AddContributionScreen() {
             keyboardType="decimal-pad"
             onChangeText={setAmount}
             placeholder="e.g. 20000"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="done"
             style={styles.input}
             value={amount}
@@ -310,7 +310,7 @@ export default function AddContributionScreen() {
             editable={!isSubmitting}
             onChangeText={setTransactionReference}
             placeholder="e.g. payment receipt number"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="done"
             style={styles.input}
             value={transactionReference}
@@ -405,15 +405,15 @@ export default function AddContributionScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 20 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26 },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 27, fontWeight: "700" },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 38, fontWeight: "700" },
   subtitle: { color: colors.textMuted, fontSize: 13, marginTop: 8, marginBottom: 24 },
-  label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
+  label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
   modeOptions: { flexDirection: "row", gap: 10, marginBottom: 10 },
   modeOption: { flex: 1, minHeight: 65, justifyContent: "center", paddingHorizontal: 13, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card },
   selectedOption: { borderColor: colors.accent, backgroundColor: colors.accentSoft },

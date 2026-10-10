@@ -93,9 +93,10 @@ export default function RegisterScreen() {
 
   return (
     <AuthLayout
-      eyebrow="LET THE PLANNING BEGIN"
+      compact
+      eyebrow="KARIBU CHEREKO"
       title="Create your account"
-      subtitle="One thoughtful space for every detail of your celebration."
+      subtitle="One space for every detail of your celebration."
     >
       <Text style={styles.label}>FULL NAME</Text>
       <TextInput
@@ -104,7 +105,7 @@ export default function RegisterScreen() {
         autoComplete="name"
         onChangeText={setFullName}
         placeholder="Your full name"
-        placeholderTextColor="#827C76"
+        placeholderTextColor={colors.textMuted}
         returnKeyType="next"
         style={styles.input}
         textContentType="name"
@@ -120,7 +121,7 @@ export default function RegisterScreen() {
         keyboardType="email-address"
         onChangeText={setEmail}
         placeholder="you@example.com"
-        placeholderTextColor="#827C76"
+        placeholderTextColor={colors.textMuted}
         returnKeyType="next"
         style={styles.input}
         textContentType="emailAddress"
@@ -133,8 +134,8 @@ export default function RegisterScreen() {
           accessibilityLabel="Create password"
           autoComplete="new-password"
           onChangeText={setPassword}
-          placeholder="At least 6 characters"
-          placeholderTextColor="#827C76"
+          placeholder="At least 8 characters"
+          placeholderTextColor={colors.textMuted}
           returnKeyType="next"
           secureTextEntry={!showPassword}
           style={styles.passwordInput}
@@ -154,7 +155,7 @@ export default function RegisterScreen() {
         onChangeText={setConfirmPassword}
         onSubmitEditing={handleRegister}
         placeholder="Enter your password again"
-        placeholderTextColor="#827C76"
+        placeholderTextColor={colors.textMuted}
         returnKeyType="done"
         secureTextEntry={!showPassword}
         style={styles.input}
@@ -177,9 +178,9 @@ export default function RegisterScreen() {
       </Pressable>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Already have an account?</Text>
+        <Text style={styles.footerText}>Una akaunti?</Text>
         <Pressable accessibilityRole="link" onPress={() => router.push("/login")}>
-          <Text style={styles.footerLink}>Sign in</Text>
+          <Text style={styles.footerLink}>Log in</Text>
         </Pressable>
       </View>
     </AuthLayout>
@@ -187,28 +188,28 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.55, marginBottom: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 12, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 15 },
-  passwordField: { minHeight: 50, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#3B3531", borderRadius: 12, backgroundColor: "rgba(255,255,255,0.035)", paddingHorizontal: 14 },
+  label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.55, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 15 },
+  passwordField: { minHeight: 50, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, paddingHorizontal: 14 },
   passwordInput: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 12 },
-  showPassword: { color: "#C5A779", fontSize: 10, fontWeight: "700", letterSpacing: 1 },
-  helper: { color: "#8F8880", fontSize: 11, marginTop: 7, marginBottom: 15 },
+  showPassword: { color: colors.link, fontSize: 10, fontWeight: "700", letterSpacing: 1 },
+  helper: { color: colors.textMuted, fontSize: 11, marginTop: 7, marginBottom: 15 },
   confirmLabel: { marginTop: 1 },
   termsRow: { flexDirection: "row", alignItems: "center", marginTop: 2, marginBottom: 3 },
-  checkbox: { width: 19, height: 19, borderRadius: 5, borderWidth: 1, borderColor: "#75634A", alignItems: "center", justifyContent: "center", marginRight: 10 },
+  checkbox: { width: 19, height: 19, borderRadius: 5, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", marginRight: 10 },
   checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkmark: { color: "#17120C", fontSize: 13, fontWeight: "800", lineHeight: 16 },
-  termsText: { flex: 1, color: "#B8B1A9", fontSize: 11, lineHeight: 17 },
-  termsLink: { color: "#D8B681", fontWeight: "600" },
+  checkmark: { color: colors.onAccent, fontSize: 13, fontWeight: "800", lineHeight: 16 },
+  termsText: { flex: 1, color: colors.textMuted, fontSize: 11, lineHeight: 17 },
+  termsLink: { color: colors.link, fontWeight: "600" },
   message: { fontSize: 12, lineHeight: 18, marginTop: 10 },
-  error: { color: "#F0A095" },
-  success: { color: "#B9D6BF" },
+  error: { color: colors.danger },
+  success: { color: colors.success },
   primaryButton: { minHeight: 54, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.accent, marginTop: 18, paddingHorizontal: 18 },
-  primaryButtonText: { color: "#17120C", fontSize: 14, fontWeight: "700", letterSpacing: 0.2 },
-  buttonArrow: { position: "absolute", right: 18, color: "#17120C", fontSize: 19, fontWeight: "500" },
+  primaryButtonText: { color: colors.onAccent, fontSize: 14, fontWeight: "700", letterSpacing: 0.2 },
+  buttonArrow: { position: "absolute", right: 18, color: colors.onAccent, fontSize: 19, fontWeight: "500" },
   footer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 5, marginTop: 20 },
-  footerText: { color: "#B8B1A9", fontSize: 13 },
-  footerLink: { color: colors.accent, fontSize: 13, fontWeight: "700" },
+  footerText: { color: colors.textMuted, fontSize: 13 },
+  footerLink: { color: colors.link, fontSize: 13, fontWeight: "700" },
   pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
   disabledButton: { opacity: 0.65 },
 });

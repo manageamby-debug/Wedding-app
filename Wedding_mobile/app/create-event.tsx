@@ -182,7 +182,7 @@ export default function CreateEventScreen() {
             maxLength={255}
             onChangeText={setName}
             placeholder="Wedding Ceremony"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={styles.input}
             value={name}
@@ -196,7 +196,7 @@ export default function CreateEventScreen() {
             maxLength={203}
             onChangeText={setCoupleNames}
             placeholder="John & Mary"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={styles.input}
             value={coupleNames}
@@ -212,7 +212,7 @@ export default function CreateEventScreen() {
                 maxLength={10}
                 onChangeText={setEventDate}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 returnKeyType="next"
                 style={styles.input}
                 value={eventDate}
@@ -227,7 +227,7 @@ export default function CreateEventScreen() {
                 maxLength={5}
                 onChangeText={setEventTime}
                 placeholder="HH:MM"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 returnKeyType="next"
                 style={styles.input}
                 value={eventTime}
@@ -243,7 +243,7 @@ export default function CreateEventScreen() {
             maxLength={255}
             onChangeText={setVenue}
             placeholder="Shinyanga Hotel"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={styles.input}
             value={venue}
@@ -258,7 +258,7 @@ export default function CreateEventScreen() {
             multiline
             onChangeText={setDescription}
             placeholder="Tell guests about the celebration"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={[styles.input, styles.descriptionInput]}
             textAlignVertical="top"
@@ -273,7 +273,7 @@ export default function CreateEventScreen() {
             maxLength={15}
             onChangeText={setTargetContribution}
             placeholder="5000000"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="done"
             style={styles.input}
             value={targetContribution}
@@ -303,21 +303,21 @@ export default function CreateEventScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 20 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26 },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 27, fontWeight: "700" },
-  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 24 },
-  label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 38, fontWeight: "700" },
+  subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 23, marginTop: 8, marginBottom: 24 },
+  label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
   splitFields: { flexDirection: "row", gap: 12 },
   splitField: { flex: 1 },
   descriptionInput: { minHeight: 92, paddingTop: 13 },
   helper: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: -7 },
   message: { fontSize: 12, lineHeight: 18, marginTop: 12 },
-  error: { color: "#F0A095" },
+  error: { color: colors.danger },
   success: { color: colors.success },
   submitButton: { minHeight: 54, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: colors.accent, marginTop: 20, paddingHorizontal: 18 },
   submitText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },

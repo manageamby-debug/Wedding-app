@@ -11,6 +11,7 @@ import { colors } from "../../../src/constants/theme";
 
 type EventDetailsData = {
   id: number;
+  user_id: number;
   name: string;
   couple_names: string;
   groom_name: string;
@@ -70,6 +71,7 @@ export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Array.isArray(id) ? id[0] : id;
   const [event, setEvent] = useState<EventDetailsData | null>(null);
+  const [isEventOwner, setIsEventOwner] = useState(false);
   const [guests, setGuests] = useState<EventGuest[]>([]);
   const [guestSearch, setGuestSearch] = useState("");
   const [guestFilter, setGuestFilter] = useState<GuestFilter>("all");
@@ -140,11 +142,13 @@ export default function EventDetailsScreen() {
     async function loadEvent() {
       try {
         const response = await api.get<EventDetailsData>(`/events/${eventId}`);
+        const userResponse = await api.get<{ id: number }>("/users/me");
 
         if (!isActive) return;
 
         console.log("Event details:", response.data);
         setEvent(response.data);
+        setIsEventOwner(response.data.user_id === userResponse.data.id);
       } catch (requestError) {
         if (!isActive) return;
 
@@ -521,7 +525,7 @@ export default function EventDetailsScreen() {
                 </View>
               ) : null}
 
-              {!eventLocked && (
+              {isEventOwner && !eventLocked && (
                 <Pressable
                   accessibilityHint="Opens the form to edit this event's details"
                   accessibilityRole="button"
@@ -532,7 +536,7 @@ export default function EventDetailsScreen() {
                 </Pressable>
               )}
 
-              <Pressable
+              {isEventOwner && <Pressable
                 accessibilityHint="Asks for confirmation, then permanently deletes this event"
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isDeleting }}
@@ -541,9 +545,9 @@ export default function EventDetailsScreen() {
                 style={[styles.deleteEventButton, isDeleting && styles.deleteEventButtonDisabled]}
               >
                 <Text style={styles.deleteEventButtonText}>{isDeleting ? "Deleting event…" : "Delete Event"}</Text>
-              </Pressable>
+              </Pressable>}
               {/* Event Lifecycle Actions */}
-              {event.status === "draft" && (
+              {isEventOwner && event.status === "draft" && (
                 <Pressable
                   accessibilityHint="Activates this draft event"
                   accessibilityRole="button"
@@ -565,7 +569,7 @@ export default function EventDetailsScreen() {
                 </Pressable>
               )}
 
-              {event.status === "active" && (
+              {isEventOwner && event.status === "active" && (
                 <Pressable
                   accessibilityHint="Marks this active event as completed"
                   accessibilityRole="button"
@@ -587,7 +591,7 @@ export default function EventDetailsScreen() {
                 </Pressable>
               )}
 
-              {(event.status === "draft" || event.status === "active") && (
+              {isEventOwner && (event.status === "draft" || event.status === "active") && (
                 <Pressable
                   accessibilityHint="Cancels this event"
                   accessibilityRole="button"
@@ -1196,11 +1200,11 @@ function formatTsh(amount: number | string): string {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 24 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 26, fontWeight: "700", marginBottom: 20 },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 36, fontWeight: "700", marginBottom: 20 },
   eventName: { color: colors.textMuted, fontSize: 13, fontWeight: "600", marginBottom: 5 },
   coupleNames: { color: colors.text, fontSize: 21, fontWeight: "700", marginBottom: 18 },
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, borderTopWidth: 1, borderTopColor: colors.border },
@@ -1209,14 +1213,14 @@ const styles = StyleSheet.create({
   eventDescription: { paddingVertical: 14, borderTopWidth: 1, borderTopColor: colors.border },
   descriptionText: { color: colors.text, fontSize: 14, lineHeight: 21, marginTop: 8 },
   editEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 16, borderWidth: 1, borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
-  deleteEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: "#351F1D" },
+  deleteEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: colors.dangerSoft },
   deleteEventButtonDisabled: { opacity: 0.55 },
   deleteEventButtonText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
-  activateEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.success, borderRadius: 11, backgroundColor: "#153126" },
+  activateEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.success, borderRadius: 11, backgroundColor: colors.successSoft },
   activateEventButtonText: { color: colors.success, fontSize: 14, fontWeight: "700" },
   completeEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
   completeEventButtonText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
-  cancelEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: "#351F1D" },
+  cancelEventButton: { minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 10, borderWidth: 1, borderColor: colors.danger, borderRadius: 11, backgroundColor: colors.dangerSoft },
   cancelEventButtonText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
   buttonDisabled: { opacity: 0.55 },
   summaryPanel: { marginTop: 24, padding: 18, borderWidth: 1, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surface },
@@ -1270,8 +1274,8 @@ const styles = StyleSheet.create({
   contributionAmount: { color: colors.text, fontSize: 18, fontWeight: "700", marginTop: 9 },
   paymentStatusBadge: { alignSelf: "flex-start", borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
   paymentPendingBadge: { backgroundColor: colors.accentSoft },
-  paymentPaidBadge: { backgroundColor: "#153126" },
-  paymentFailedBadge: { backgroundColor: "#351F1D" },
+  paymentPaidBadge: { backgroundColor: colors.successSoft },
+  paymentFailedBadge: { backgroundColor: colors.dangerSoft },
   paymentStatusText: { fontSize: 10, fontWeight: "700", textTransform: "capitalize" },
   paymentPendingText: { color: colors.accent },
   paymentPaidText: { color: colors.success },
@@ -1279,11 +1283,11 @@ const styles = StyleSheet.create({
   // ── Status Badge ──
   statusBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
   statusBadgeText: { fontSize: 12, fontWeight: "700" },
-  statusBadgeDraft: { backgroundColor: "#332B12" },
-  statusBadgeSuccess: { backgroundColor: "#153126" },
-  statusBadgeMuted: { backgroundColor: "#1E1E1E" },
-  statusBadgeDanger: { backgroundColor: "#351F1D" },
-  statusTextDraft: { color: "#C9A227" },
+  statusBadgeDraft: { backgroundColor: colors.warningSoft },
+  statusBadgeSuccess: { backgroundColor: colors.successSoft },
+  statusBadgeMuted: { backgroundColor: colors.card },
+  statusBadgeDanger: { backgroundColor: colors.dangerSoft },
+  statusTextDraft: { color: colors.warning },
   statusTextSuccess: { color: colors.success },
   statusTextMuted: { color: colors.textMuted },
   statusTextDanger: { color: colors.danger },

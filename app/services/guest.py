@@ -1,3 +1,4 @@
+from app.core.event_access import event_access_filter
 import secrets
 
 from sqlalchemy.orm import Session
@@ -15,7 +16,7 @@ def create_guest(
 ):
     event = (
         db.query(Event)
-        .filter(Event.id == event_id, Event.user_id == user_id)
+        .filter(Event.id == event_id, event_access_filter(user_id))
         .first()
     )
 
@@ -41,7 +42,7 @@ def get_guests(db: Session, event_id: int, user_id: int):
     """All guests of one of the user's events, or None if the event isn't theirs."""
     event = (
         db.query(Event)
-        .filter(Event.id == event_id, Event.user_id == user_id)
+        .filter(Event.id == event_id, event_access_filter(user_id))
         .first()
     )
 
@@ -55,7 +56,7 @@ def get_guest_by_code(db: Session, guest_code: str, user_id: int):
     return (
         db.query(Guest)
         .join(Event, Guest.event_id == Event.id)
-        .filter(Guest.guest_code == guest_code, Event.user_id == user_id)
+        .filter(Guest.guest_code == guest_code, event_access_filter(user_id))
         .first()
     )
 
@@ -83,7 +84,7 @@ def update_guest(
     guest = (
         db.query(Guest)
         .join(Event, Guest.event_id == Event.id)
-        .filter(Guest.id == guest_id, Event.user_id == user_id)
+        .filter(Guest.id == guest_id, event_access_filter(user_id))
         .first()
     )
 
@@ -107,7 +108,7 @@ def delete_guest(
     guest = (
         db.query(Guest)
         .join(Event, Guest.event_id == Event.id)
-        .filter(Guest.id == guest_id, Event.user_id == user_id)
+        .filter(Guest.id == guest_id, event_access_filter(user_id))
         .first()
     )
 

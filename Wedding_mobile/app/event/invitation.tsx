@@ -152,14 +152,14 @@ export default function Invitation() {
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 20, backgroundColor: colors.background },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26, backgroundColor: colors.background },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 27, fontWeight: "700" },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 38, fontWeight: "700" },
   subtitle: { color: colors.textMuted, fontSize: 13, marginTop: 8, marginBottom: 24 },
-  label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginTop: 14, marginBottom: 6 },
+  label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginTop: 14, marginBottom: 6 },
   helper: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 18 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 16 },
   submitButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accent },

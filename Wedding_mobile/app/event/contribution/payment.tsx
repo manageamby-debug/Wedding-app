@@ -327,7 +327,7 @@ export default function PaymentScreen() {
                     }}
                     onSubmitEditing={() => void submitPayment()}
                     placeholder="e.g. MPESA12345ABC"
-                    placeholderTextColor="#827C76"
+                    placeholderTextColor={colors.textMuted}
                     returnKeyType="done"
                     style={[styles.input, referenceError && styles.inputError]}
                     value={paymentReference}
@@ -393,11 +393,11 @@ export default function PaymentScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 24 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 26, fontWeight: "700" },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 36, fontWeight: "700" },
   subtitle: { color: colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 22 },
   message: { color: colors.textMuted, fontSize: 14 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 20, marginTop: 10 },
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   summaryLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.1 },
   summaryName: { color: colors.text, fontSize: 15, fontWeight: "600", marginTop: 5 },
   summaryAmount: { color: colors.accent, fontSize: 16, fontWeight: "700" },
-  successNotice: { color: colors.success, fontSize: 14, lineHeight: 21, padding: 14, borderRadius: 10, backgroundColor: "#153126" },
+  successNotice: { color: colors.success, fontSize: 14, lineHeight: 21, padding: 14, borderRadius: 10, backgroundColor: colors.successSoft },
   sectionTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
   helper: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 6, marginBottom: 12 },
   methods: { gap: 9, marginBottom: 22 },
@@ -421,8 +421,8 @@ const styles = StyleSheet.create({
   methodLabel: { color: colors.text, fontSize: 14, fontWeight: "600" },
   methodLabelSelected: { color: colors.accent },
   methodDescription: { color: colors.textMuted, fontSize: 12, marginTop: 3 },
-  inputLabel: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14 },
+  inputLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14 },
   inputError: { borderColor: colors.danger },
   proofButton: { minHeight: 46, alignItems: "center", justifyContent: "center", borderWidth: 1, borderStyle: "dashed", borderColor: colors.accent, borderRadius: 11, backgroundColor: colors.accentSoft },
   proofButtonText: { color: colors.accent, fontSize: 13, fontWeight: "700" },

@@ -14,3 +14,6 @@ class User(Base):
     role: Mapped[str] = mapped_column(String, default="organizer", nullable=False)
 
     events = relationship("Event", back_populates="user")
+    event_memberships = relationship(
+        "EventMember", back_populates="user", cascade="all, delete-orphan"
+    )

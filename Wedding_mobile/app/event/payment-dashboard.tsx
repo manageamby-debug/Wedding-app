@@ -224,11 +224,11 @@ function Metric({ label, value, hint, tone }: { label: string; value: string; hi
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 24 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 26, fontWeight: "700" },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 36, fontWeight: "700" },
   subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 20 },
   message: { color: colors.textMuted, fontSize: 14 },
   error: { color: colors.danger, fontSize: 14, lineHeight: 21 },

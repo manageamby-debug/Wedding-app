@@ -1,3 +1,4 @@
+from app.core.event_access import event_access_filter
 from datetime import datetime
 
 from sqlalchemy import or_
@@ -21,7 +22,7 @@ def _get_guest(db: Session, event_id: int, guest_code: str, user_id: int):
         .outerjoin(Invitation, Invitation.guest_id == Guest.id)
         .filter(
             Guest.event_id == event_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
             or_(
                 Guest.guest_code == guest_code,
                 Invitation.invitation_code == guest_code,
@@ -74,7 +75,7 @@ def get_guest_for_check_in(
 def get_check_in_summary(db: Session, event_id: int, user_id: int):
     event = (
         db.query(Event)
-        .filter(Event.id == event_id, Event.user_id == user_id)
+        .filter(Event.id == event_id, event_access_filter(user_id))
         .first()
     )
 
@@ -111,7 +112,7 @@ def get_checked_in_guests(
     """
     event = (
         db.query(Event)
-        .filter(Event.id == event_id, Event.user_id == user_id)
+        .filter(Event.id == event_id, event_access_filter(user_id))
         .first()
     )
 
@@ -149,7 +150,7 @@ def get_guest_check_in_status(
     """
     event = (
         db.query(Event)
-        .filter(Event.id == event_id, Event.user_id == user_id)
+        .filter(Event.id == event_id, event_access_filter(user_id))
         .first()
     )
 

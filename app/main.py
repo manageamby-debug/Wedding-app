@@ -14,7 +14,9 @@ from app.models import event as event_model  # noqa: F401  (registers the table)
 from app.models import guest as guest_model  # noqa: F401  (registers the table)
 from app.models import user as user_model  # noqa: F401  (registers the table)
 from app.models import payment_audit as payment_audit_model  # noqa: F401 (registers the table)
-from app.routers import checkin, contribution, dashboard, event, guest, invitation, payment_audit, rsvp, snippe, user
+from app.models import story_photo as story_photo_model  # noqa: F401 (registers the table)
+from app.models import event_member as event_member_model  # noqa: F401 (registers the table)
+from app.routers import checkin, contribution, dashboard, event, event_members, guest, invitation, payment_audit, rsvp, story_photo, user
 from fastapi.middleware.cors import CORSMiddleware
 
 prepare_database()
@@ -43,4 +45,5 @@ app.include_router(rsvp.router)
 app.include_router(checkin.router)
 app.include_router(dashboard.router)
 app.include_router(payment_audit.router)
-app.include_router(snippe.router)
+app.include_router(story_photo.router)
+app.include_router(event_members.router)

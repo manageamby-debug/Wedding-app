@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import require_role
+from app.core.event_access import event_access_filter
+from app.core.security import get_current_user
 from app.models.event import Event
 from app.models.guest import Guest
 from app.models.user import User
@@ -21,14 +22,14 @@ router = APIRouter()
 def create_invitation(
     invitation_data: InvitationCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     guest = (
         db.query(Guest)
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Guest.id == invitation_data.guest_id,
-            Event.user_id == current_user.id,
+            event_access_filter(current_user.id),
         )
         .first()
     )

@@ -241,8 +241,8 @@ function DetailRow({ label, value, last = false }: { label: string; value: strin
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 20, backgroundColor: colors.background },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26, backgroundColor: colors.background },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 14 },
   greeting: { color: colors.textMuted, fontSize: 14 },
   coupleNames: { color: colors.text, fontSize: 24, fontWeight: "700", marginTop: 8, marginBottom: 20 },

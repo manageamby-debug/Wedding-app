@@ -113,9 +113,9 @@ export default function LoginScreen() {
 
   return (
     <AuthLayout
-      eyebrow="YOUR PLANNING SPACE"
-      title="Welcome back"
-      subtitle="Sign in to pick up where your celebration plans left off."
+      eyebrow="KARIBU TENA"
+      title="Log in"
+      subtitle="Log in to keep planning your event with Chereko."
     >
       <Text style={styles.label}>EMAIL ADDRESS</Text>
       <TextInput
@@ -126,7 +126,7 @@ export default function LoginScreen() {
         keyboardType="email-address"
         onChangeText={setEmail}
         placeholder="you@example.com"
-        placeholderTextColor="#827C76"
+        placeholderTextColor={colors.textMuted}
         returnKeyType="next"
         style={styles.input}
         textContentType="emailAddress"
@@ -146,7 +146,7 @@ export default function LoginScreen() {
           onChangeText={setPassword}
           onSubmitEditing={handleLogin}
           placeholder="Enter your password"
-          placeholderTextColor="#827C76"
+          placeholderTextColor={colors.textMuted}
           returnKeyType="go"
           secureTextEntry={!showPassword}
           style={styles.passwordInput}
@@ -161,14 +161,14 @@ export default function LoginScreen() {
       {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, isError ? styles.error : styles.success]}>{message}</Text> : null}
 
       <Pressable accessibilityRole="button" accessibilityState={{ disabled: isSubmitting }} disabled={isSubmitting} onPress={handleLogin} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed, isSubmitting && styles.disabledButton]}>
-        <Text style={styles.primaryButtonText}>{isSubmitting ? "Signing in…" : "Sign in"}</Text>
+        <Text style={styles.primaryButtonText}>{isSubmitting ? "Signing in…" : "Log in"}</Text>
         {isSubmitting ? null : <Text style={styles.buttonArrow}>→</Text>}
       </Pressable>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>New to Everafter?</Text>
+        <Text style={styles.footerText}>Huna akaunti?</Text>
         <Pressable accessibilityRole="link" onPress={() => router.push("/register")}>
-          <Text style={styles.footerLink}>Create an account</Text>
+          <Text style={styles.footerLink}>Sign up</Text>
         </Pressable>
       </View>
       <Text style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
@@ -177,24 +177,24 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.55, marginBottom: 9 },
-  input: { minHeight: 54, borderWidth: 1, borderColor: "#3B3531", borderRadius: 12, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 15, fontSize: 15, marginBottom: 21 },
+  label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.55, marginBottom: 9 },
+  input: { minHeight: 54, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 15, fontSize: 15, marginBottom: 21 },
   passwordHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9 },
-  linkSmall: { color: colors.accent, fontSize: 12, fontWeight: "600" },
-  passwordField: { minHeight: 54, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#3B3531", borderRadius: 12, backgroundColor: "rgba(255,255,255,0.035)", paddingHorizontal: 15, marginBottom: 4 },
+  linkSmall: { color: colors.link, fontSize: 12, fontWeight: "600" },
+  passwordField: { minHeight: 54, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, paddingHorizontal: 15, marginBottom: 4 },
   passwordInput: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 14 },
-  showPassword: { color: "#C5A779", fontSize: 10, fontWeight: "700", letterSpacing: 1 },
+  showPassword: { color: colors.link, fontSize: 10, fontWeight: "700", letterSpacing: 1 },
   message: { fontSize: 12, lineHeight: 18, marginTop: 9 },
-  error: { color: "#F0A095" },
-  success: { color: "#B9D6BF" },
+  error: { color: colors.danger },
+  success: { color: colors.success },
   primaryButton: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 13, backgroundColor: colors.accent, marginTop: 22, paddingHorizontal: 18 },
-  primaryButtonText: { color: "#17120C", fontSize: 15, fontWeight: "700", letterSpacing: 0.2 },
-  buttonArrow: { position: "absolute", right: 18, color: "#17120C", fontSize: 19, fontWeight: "500" },
+  primaryButtonText: { color: colors.onAccent, fontSize: 15, fontWeight: "700", letterSpacing: 0.2 },
+  buttonArrow: { position: "absolute", right: 18, color: colors.onAccent, fontSize: 19, fontWeight: "500" },
   footer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 5, marginTop: 22 },
-  footerText: { color: "#B8B1A9", fontSize: 13 },
-  footerLink: { color: colors.accent, fontSize: 13, fontWeight: "700" },
-  legal: { color: "#827C76", fontSize: 10, lineHeight: 16, textAlign: "center", marginTop: 19 },
-  legalLink: { color: "#C5A779" },
+  footerText: { color: colors.textMuted, fontSize: 13 },
+  footerLink: { color: colors.link, fontSize: 13, fontWeight: "700" },
+  legal: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: "center", marginTop: 19 },
+  legalLink: { color: colors.link },
   pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
   disabledButton: { opacity: 0.65 },
 });

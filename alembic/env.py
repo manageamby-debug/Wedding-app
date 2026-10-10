@@ -25,6 +25,8 @@ from app.models import guest
 from app.models import contributions
 from app.models import payment_audit
 from app.models import invitation
+from app.models import story_photo
+from app.models import event_member
 
 target_metadata =Base.metadata
 

@@ -104,6 +104,7 @@ class EventUpdate(BaseModel):
 
 class EventResponse(BaseModel):
     id: int
+    user_id: int
     name: str
     couple_names: str
     groom_name: str

@@ -1,3 +1,4 @@
+from app.core.event_access import event_access_filter
 from sqlalchemy.orm import Session
 
 from app.models.contributions import Contribution
@@ -34,7 +35,7 @@ def get_contribution_audits(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Contribution.id == contribution_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
         )
         .first()
     )

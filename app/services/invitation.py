@@ -1,3 +1,4 @@
+from app.core.event_access import event_access_filter
 import secrets
 
 from sqlalchemy.orm import Session
@@ -36,7 +37,7 @@ def create_invitation(
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Guest.id == invitation_data.guest_id,
-            Event.user_id == user_id,
+            event_access_filter(user_id),
         )
         .first()
     )

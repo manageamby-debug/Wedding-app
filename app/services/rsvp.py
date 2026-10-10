@@ -1,3 +1,4 @@
+from app.core.event_access import event_access_filter
 from sqlalchemy.orm import Session
 
 from app.models.guest import Guest
@@ -61,7 +62,7 @@ def get_event_rsvps(
 ):
     event = (
         db.query(Event)
-        .filter(Event.id == event_id, Event.user_id == user_id)
+        .filter(Event.id == event_id, event_access_filter(user_id))
         .first()
     )
 
@@ -92,7 +93,7 @@ def get_rsvp_summary(
 ):
     event = (
         db.query(Event)
-        .filter(Event.id == event_id, Event.user_id == user_id)
+        .filter(Event.id == event_id, event_access_filter(user_id))
         .first()
     )
 

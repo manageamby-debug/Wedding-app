@@ -135,7 +135,7 @@ export default function AddGuestScreen() {
             onChangeText={setFullName}
             maxLength={100}
             placeholder="Guest's full name"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={styles.input}
             value={fullName}
@@ -149,7 +149,7 @@ export default function AddGuestScreen() {
             keyboardType="phone-pad"
             onChangeText={setPhone}
             placeholder="e.g. +255 712 345 678"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={styles.input}
             value={phone}
@@ -164,7 +164,7 @@ export default function AddGuestScreen() {
             keyboardType="email-address"
             onChangeText={setEmail}
             placeholder="guest@example.com"
-            placeholderTextColor="#827C76"
+            placeholderTextColor={colors.textMuted}
             returnKeyType="done"
             style={styles.input}
             value={email}
@@ -191,15 +191,15 @@ export default function AddGuestScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 20 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26 },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 27, fontWeight: "700" },
-  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 24 },
-  label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 38, fontWeight: "700" },
+  subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 23, marginTop: 8, marginBottom: 24 },
+  label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 16 },
   submitButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accent },
   submitText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },

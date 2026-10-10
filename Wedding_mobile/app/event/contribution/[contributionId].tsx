@@ -397,7 +397,7 @@ export default function ContributionDetailsScreen() {
                     editable={!isSaving}
                     onChangeText={setReference}
                     placeholder="e.g. M-Pesa or bank reference"
-                    placeholderTextColor="#827C76"
+                    placeholderTextColor={colors.textMuted}
                     style={styles.input}
                     value={reference}
                   />
@@ -467,7 +467,7 @@ export default function ContributionDetailsScreen() {
                 if (rejectError) setRejectError("");
               }}
               placeholder="e.g. Payment reference was not found on the statement"
-              placeholderTextColor="#827C76"
+              placeholderTextColor={colors.textMuted}
               style={[styles.input, styles.reasonInput]}
               value={rejectReason}
             />
@@ -550,19 +550,19 @@ function getBadgeTextStyle(status: string) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 24 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 26, fontWeight: "700", marginBottom: 20 },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 36, fontWeight: "700", marginBottom: 20 },
   message: { color: colors.textMuted, fontSize: 14 },
   error: { color: colors.danger, fontSize: 14, lineHeight: 21 },
   amount: { color: colors.text, fontSize: 28, fontWeight: "700" },
   badge: { alignSelf: "flex-start", marginTop: 12, marginBottom: 20, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 6 },
   badgeText: { fontSize: 11, fontWeight: "700", textTransform: "capitalize" },
   pendingBadge: { backgroundColor: colors.accentSoft },
-  paidBadge: { backgroundColor: "#153126" },
-  failedBadge: { backgroundColor: "#351F1D" },
+  paidBadge: { backgroundColor: colors.successSoft },
+  failedBadge: { backgroundColor: colors.dangerSoft },
   pendingText: { color: colors.accent },
   paidText: { color: colors.success },
   failedText: { color: colors.danger },
@@ -574,29 +574,29 @@ const styles = StyleSheet.create({
   capitalize: { textTransform: "capitalize" },
   verifyBlock: { marginTop: 20 },
   proofBlock: { marginTop: 20 },
-  rejectionBlock: { marginTop: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.danger, backgroundColor: "#351F1D" },
+  rejectionBlock: { marginTop: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.dangerSoft },
   rejectionLabel: { color: colors.danger, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
   rejectionText: { color: colors.text, fontSize: 14, lineHeight: 21 },
   rejectionMeta: { color: colors.textMuted, fontSize: 11, marginTop: 10 },
-  proofImage: { width: "100%", height: 400, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: "rgba(255,255,255,0.035)" },
-  inputLabel: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 14 },
+  proofImage: { width: "100%", height: 400, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  inputLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 14 },
   actionError: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 12 },
   markPaidButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accent },
   markPaidText: { color: colors.onAccent, fontSize: 14, fontWeight: "700" },
   pressed: { opacity: 0.78 },
   rejectButtonSpaced: { marginTop: 12 },
-  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20, backgroundColor: "rgba(0,0,0,0.6)" },
+  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26, backgroundColor: "rgba(0,0,0,0.6)" },
   modalCard: { width: "100%", maxWidth: 440, padding: 22, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   modalTitle: { color: colors.text, fontSize: 20, fontWeight: "700" },
   modalSubtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 16 },
   modalActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   modalCancel: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: colors.accentSoft },
   modalCancelText: { color: colors.accent, fontSize: 14, fontWeight: "700" },
-  modalReject: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 11, borderWidth: 1, borderColor: colors.danger, backgroundColor: "#351F1D" },
+  modalReject: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 11, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.dangerSoft },
   rejectLabel: { marginTop: 22 },
   reasonInput: { minHeight: 76, paddingVertical: 12, textAlignVertical: "top" },
-  rejectButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, borderWidth: 1, borderColor: colors.danger, backgroundColor: "#351F1D" },
+  rejectButton: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 11, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.dangerSoft },
   rejectButtonText: { color: colors.danger, fontSize: 14, fontWeight: "700" },
   disabledButton: { opacity: 0.55 },
   guestButton: { alignSelf: "flex-start", minHeight: 40, justifyContent: "center", marginTop: 20, paddingHorizontal: 16, borderRadius: 10, backgroundColor: colors.accentSoft },

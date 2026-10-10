@@ -265,7 +265,7 @@ export default function EditEventScreen() {
                 maxLength={255}
                 onChangeText={setEventName}
                 placeholder="Wedding celebration"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={eventName}
               />
@@ -278,7 +278,7 @@ export default function EditEventScreen() {
                 maxLength={100}
                 onChangeText={setGroomName}
                 placeholder="Groom's name"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={groomName}
               />
@@ -291,7 +291,7 @@ export default function EditEventScreen() {
                 maxLength={100}
                 onChangeText={setBrideName}
                 placeholder="Bride's name"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={brideName}
               />
@@ -304,7 +304,7 @@ export default function EditEventScreen() {
                 maxLength={10}
                 onChangeText={setEventDate}
                 placeholder="2026-12-20"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={eventDate}
               />
@@ -317,7 +317,7 @@ export default function EditEventScreen() {
                 maxLength={8}
                 onChangeText={setEventTime}
                 placeholder="16:30"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={eventTime}
               />
@@ -329,7 +329,7 @@ export default function EditEventScreen() {
                 maxLength={150}
                 onChangeText={setVenueName}
                 placeholder="Venue name"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={venueName}
               />
@@ -341,7 +341,7 @@ export default function EditEventScreen() {
                 maxLength={255}
                 onChangeText={setVenueAddress}
                 placeholder="Venue address"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={venueAddress}
               />
@@ -353,7 +353,7 @@ export default function EditEventScreen() {
                 keyboardType="decimal-pad"
                 onChangeText={setTargetContribution}
                 placeholder="0"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={targetContribution}
               />
@@ -366,7 +366,7 @@ export default function EditEventScreen() {
                 multiline
                 onChangeText={setDescription}
                 placeholder="Share details about the celebration"
-                placeholderTextColor="#827C76"
+                placeholderTextColor={colors.textMuted}
                 style={[styles.input, styles.multilineInput]}
                 textAlignVertical="top"
                 value={description}
@@ -413,23 +413,23 @@ export default function EditEventScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 20 },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  content: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26 },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   backButton: { alignSelf: "flex-start", marginBottom: 24 },
   backText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 10 },
-  title: { color: colors.text, fontSize: 27, fontWeight: "700" },
-  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 24 },
+  title: { color: colors.text, fontFamily: "Georgia", fontSize: 38, fontWeight: "700" },
+  subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 23, marginTop: 8, marginBottom: 24 },
   message: { color: colors.textMuted, fontSize: 14 },
   errorBlock: { marginBottom: 16 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19, marginBottom: 12 },
   retryButton: { alignSelf: "flex-start", marginTop: 12, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 9, backgroundColor: colors.accentSoft },
   retryText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
-  label: { color: "#D3C8B9", fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
-  input: { minHeight: 50, borderWidth: 1, borderColor: "#3B3531", borderRadius: 11, backgroundColor: "rgba(255,255,255,0.035)", color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
+  label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
+  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
   multilineInput: { minHeight: 110, paddingTop: 12 },
   statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
-  statusChip: { paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "#3B3531", borderRadius: 20 },
+  statusChip: { paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 20 },
   statusChipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   statusChipText: { color: colors.textMuted, fontSize: 12, fontWeight: "700", textTransform: "capitalize" },
   statusChipTextActive: { color: colors.accent },

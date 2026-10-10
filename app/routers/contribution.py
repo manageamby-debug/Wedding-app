@@ -3,8 +3,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.event_access import require_contribution_owner, require_event_owner
-from app.core.security import require_role
+from app.core.event_access import event_access_filter, require_contribution_owner, require_event_owner
+from app.core.security import get_current_user
 from app.models.contributions import Contribution
 from app.models.event import Event
 from app.models.guest import Guest
@@ -36,7 +36,7 @@ router = APIRouter()
 def create_contribution(
     contribution_data: ContributionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     contribution = contribution_service.create_contribution(
         db, contribution_data, current_user.id
@@ -80,7 +80,7 @@ def confirm_contribution(
     payment_data: ContributionConfirm,
     contribution: Contribution = Depends(require_contribution_owner),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     contribution, status = contribution_service.confirm_contribution(
         db,
@@ -132,7 +132,7 @@ def get_event_contributions(
 def get_event_contribution_summary(
     event_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_role("organizer"))
+    current_user = Depends(get_current_user)
 ):
     summary = contribution_service.get_event_contribution_summary(
         db,
@@ -154,7 +154,7 @@ def get_event_contribution_summary(
 def get_contribution_receipt(
     contribution_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_role("organizer"))
+    current_user = Depends(get_current_user)
 ):
     receipt = contribution_service.get_contribution_receipt(
         db,
@@ -202,14 +202,14 @@ def get_contribution_summary(
 def create_manual_contribution(
     contribution_data: ManualContributionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     guest = (
         db.query(Guest)
         .join(Event, Guest.event_id == Event.id)
         .filter(
             Guest.id == contribution_data.guest_id,
-            Event.user_id == current_user.id,
+            event_access_filter(current_user.id),
         )
         .first()
     )
@@ -245,7 +245,7 @@ def create_manual_contribution(
 def get_guest_contributions(
     guest_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     result = contribution_service.get_guest_contributions(
         db,
@@ -270,7 +270,7 @@ def reject_contribution(
     payment_data: ContributionReject,
     contribution: Contribution = Depends(require_contribution_owner),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     contribution, status = contribution_service.reject_contribution(
         db,
@@ -308,7 +308,7 @@ async def upload_payment_proof(
     file: UploadFile = File(...),
     contribution: Contribution = Depends(require_contribution_owner),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     max_bytes = payment_proof_service.MAX_PROOF_BYTES
     data = await file.read(max_bytes + 1)

@@ -78,8 +78,8 @@ export default function ScanQR() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000000" },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20, backgroundColor: colors.background },
-  card: { width: "100%", maxWidth: 560, padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  centered: { flex: 1, alignItems: "center", justifyContent: "flex-start", padding: 22, paddingTop: 26, backgroundColor: colors.background },
+  card: { width: "100%", maxWidth: 620, padding: 24, borderRadius: 26, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   overlay: { flex: 1, alignItems: "center", justifyContent: "space-between", paddingVertical: 40 },
   top: { alignSelf: "stretch", paddingHorizontal: 20 },
   backButton: { alignSelf: "flex-start", marginBottom: 16 },

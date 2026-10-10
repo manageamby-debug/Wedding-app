@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.event_access import require_event_owner, require_guest_owner
-from app.core.security import require_role
+from app.core.security import get_current_user
 from app.models.event import Event
 from app.models.guest import Guest
 from app.models.user import User
@@ -51,7 +51,7 @@ def get_guests(
 def get_guest_by_code(
     guest_code: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     guest = guest_services.get_guest_by_code(db, guest_code, current_user.id)
 
@@ -65,7 +65,7 @@ def get_guest_by_code(
 def check_in_guest(
     guest_code: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     guest = guest_services.check_in_guest(db, guest_code, current_user.id)
 
@@ -80,7 +80,7 @@ def update_guest(
     guest_data: GuestUpdate,
     guest: Guest = Depends(require_guest_owner),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     guest = guest_services.update_guest(
         db,
@@ -99,7 +99,7 @@ def update_guest(
 def delete_guest(
     guest: Guest = Depends(require_guest_owner),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("organizer")),
+    current_user: User = Depends(get_current_user),
 ):
     guest = guest_services.delete_guest(db, guest.id, current_user.id)
 
