@@ -79,7 +79,7 @@ export default function Dashboard() {
         <Text style={styles.eyebrow}>CHEREKO · EVENT PLANNER</Text>
         <Text style={styles.emptyTitle}>Karibu tena, {firstName}</Text>
         <Text style={styles.muted}>Your wedding plans start here.</Text>
-        <Pressable style={styles.primary} onPress={() => router.push("/create-event")}><Text style={styles.primaryText}>＋ Create your wedding</Text></Pressable>
+        <Pressable style={styles.primary} onPress={() => router.push("/create-event")}><Text style={styles.primaryText}>＋ Create your event</Text></Pressable>
       </ScrollView>
       <WeddingNav active="home" />
     </View>
