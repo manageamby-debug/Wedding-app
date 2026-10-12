@@ -1,12 +1,20 @@
+import os
+
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "sqlite:///./wedding.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wedding.db")
+if os.getenv("VERCEL") and DATABASE_URL.startswith("sqlite"):
+    raise RuntimeError(
+        "Vercel deployments require a persistent PostgreSQL DATABASE_URL; "
+        "SQLite files do not persist between function invocations."
+    )
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-)
+engine_options = {}
+if DATABASE_URL.startswith("sqlite"):
+    engine_options["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, **engine_options)
 
 SessionLocal = sessionmaker(
     autoflush=False,
@@ -19,6 +27,10 @@ Base = declarative_base()
 
 def prepare_database():
     """Create the current schema and safely handle the earlier empty events table."""
+    if engine.dialect.name != "sqlite":
+        Base.metadata.create_all(bind=engine)
+        return
+
     with engine.begin() as connection:
         inspector = inspect(connection)
         if "events" in inspector.get_table_names():

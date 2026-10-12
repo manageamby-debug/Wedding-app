@@ -18,15 +18,22 @@ from app.models import story_photo as story_photo_model  # noqa: F401 (registers
 from app.models import event_member as event_member_model  # noqa: F401 (registers the table)
 from app.routers import checkin, contribution, dashboard, event, event_members, guest, invitation, payment_audit, rsvp, story_photo, user
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 prepare_database()
 
 app = FastAPI()
 
+frontend_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("FRONTEND_ORIGINS", "*").split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=frontend_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 
