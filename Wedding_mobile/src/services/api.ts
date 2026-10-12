@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { getToken, notifySessionExpired, removeToken } from "./auth";
 
 const API_PORT = 8000;
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
 // Picks the right backend address automatically:
 // - Web: the browser runs on the same PC as the backend, so use localhost.
@@ -11,6 +12,10 @@ const API_PORT = 8000;
 //   so it never goes stale when your Wi-Fi IP changes.
 // - Android emulator fallback: 10.0.2.2 is the emulator's alias for the PC.
 function getBaseUrl(): string {
+  if (configuredApiUrl) {
+    return configuredApiUrl.replace(/\/$/, "");
+  }
+
   if (Platform.OS === "web") {
     return `http://localhost:${API_PORT}`;
   }
