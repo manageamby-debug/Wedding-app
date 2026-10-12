@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { colors as theme } from "../../constants/theme";
+import Svg, { Path } from "react-native-svg";
+import { applyThemeMode, colors as theme, isLightTheme } from "../../constants/theme";
 import { PLAN_PRICES, type PlanName } from "../../constants/plans";
+import { getStored, setStored } from "../../constants/themeStorage";
+import { COPY, fill, type Lang } from "../../constants/welcomeCopy";
+import { CONTACT_EMAIL, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_LINK, PLAY_STORE_URL } from "../../constants/contact";
 
 const colors = {
   ink: theme.text,
@@ -44,23 +48,10 @@ const CARD_THEMES: CardTheme[] = [
 const THEME_HOLD_MS = 2800;
 const SPIN_MS = 1000;
 
-const services = [
-  { number: "01", title: "Mialiko ya kidigitali", body: "Tengeneza mwaliko wenye QR code na link ya RSVP kwa kila mgeni." },
-  { number: "02", title: "Wageni na RSVP", body: "Panga orodha ya wageni, tafuta taarifa zao na fuatilia majibu." },
-  { number: "03", title: "Michango na malipo", body: "Rekodi michango, angalia hali ya malipo na fuatilia jumla ya fedha." },
-  { number: "04", title: "Check-in ya wageni", body: "Thibitisha waliofika kwa kutumia code ya mwaliko kwenye siku ya tukio." },
-];
-
-const steps = [
-  { number: "1", title: "Fungua akaunti", body: "Jisajili bure kama mratibu wa harusi." },
-  { number: "2", title: "Weka tukio lako", body: "Ongeza tarehe, eneo na taarifa muhimu za harusi." },
-  { number: "3", title: "Alika na fuatilia", body: "Ongeza wageni, tuma mialiko na angalia RSVP." },
-];
-
-const tiers: { name: PlanName; price: string; featured: boolean; items: string[] }[] = [
-  { name: "Starter", price: PLAN_PRICES.Starter, featured: false, items: ["Taarifa na namba ya kadi", "SMS na email link", "Ripoti ya PDF"] },
-  { name: "Plus", price: PLAN_PRICES.Plus, featured: true, items: ["Vyote vya Starter", "WhatsApp", "QR code na template", "Link ya RSVP"] },
-  { name: "Premium", price: PLAN_PRICES.Premium, featured: false, items: ["Vyote vya Plus", "Picha ya wanandoa", "Ujumbe wa shukrani"] },
+const tierOptions: { name: PlanName; price: string; featured: boolean }[] = [
+  { name: "Starter", price: PLAN_PRICES.Starter, featured: false },
+  { name: "Plus", price: PLAN_PRICES.Plus, featured: true },
+  { name: "Premium", price: PLAN_PRICES.Premium, featured: false },
 ];
 
 export default function WelcomeScreen() {
@@ -69,9 +60,11 @@ export default function WelcomeScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const servicesY = useRef(0);
   const pricingY = useRef(0);
+  const [language, setLanguage] = useState<Lang>(() => getStored("welcomeLanguage") === "en" ? "en" : "sw");
+  const copy = COPY[language];
 
   // 0 = current card showing, 1 = next card fully in place.
-  const spin = useRef(new Animated.Value(0)).current;
+  const [spin] = useState(() => new Animated.Value(0));
   const [current, setCurrent] = useState(0);
   const next = (current + 1) % CARD_THEMES.length;
 
@@ -124,9 +117,19 @@ export default function WelcomeScreen() {
   const scrollTo = (y: number) => scrollRef.current?.scrollTo({ y, animated: true });
   const openRegister = () => router.push("/register");
   const [selectedPlan, setSelectedPlan] = useState<PlanName>("Plus");
+  const tiers = tierOptions.map((tier) => ({ ...tier, items: copy.tierItems[tier.name] }));
   const chosenTier = tiers.find((tier) => tier.name === selectedPlan) ?? tiers[1];
   const continueWithPlan = () => router.push({ pathname: "/register", params: { plan: selectedPlan } });
   const openLogin = () => router.push("/login");
+  const toggleLanguage = () => {
+    const nextLanguage = language === "sw" ? "en" : "sw";
+    setStored("welcomeLanguage", nextLanguage);
+    setLanguage(nextLanguage);
+  };
+  const toggleTheme = () => {
+    const restarted = applyThemeMode(isLightTheme ? "dark" : "light");
+    if (!restarted) Alert.alert("Chereko", copy.themeRestartMessage);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -138,83 +141,91 @@ export default function WelcomeScreen() {
           </Pressable>
           {!compact ? (
             <View style={styles.nav}>
-              <Pressable onPress={() => scrollTo(0)}><Text style={styles.navText}>Nyumbani</Text></Pressable>
-              <Pressable onPress={() => scrollTo(servicesY.current)}><Text style={styles.navText}>Huduma</Text></Pressable>
-              <Pressable onPress={() => scrollTo(pricingY.current)}><Text style={styles.navText}>Bei za e-card</Text></Pressable>
+              <Pressable onPress={() => scrollTo(0)}><Text style={styles.navText}>{copy.nav.home}</Text></Pressable>
+              <Pressable onPress={() => scrollTo(servicesY.current)}><Text style={styles.navText}>{copy.nav.services}</Text></Pressable>
+              <Pressable onPress={() => scrollTo(pricingY.current)}><Text style={styles.navText}>{copy.nav.pricing}</Text></Pressable>
             </View>
           ) : null}
-          <Pressable accessibilityRole="button" onPress={openLogin} style={styles.loginButton}>
-            <Text style={styles.loginText}>Ingia</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel={copy.switchLanguage} onPress={toggleLanguage} style={styles.headerUtilityButton}>
+              <Text style={styles.headerUtilityText}>{language === "sw" ? "EN" : "SW"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={copy.switchTheme} onPress={toggleTheme} style={styles.headerUtilityButton}>
+              <Text style={styles.themeIcon}>{isLightTheme ? "☾" : "☀"}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={openLogin} style={styles.loginButton}>
+              <Text style={styles.loginText}>{copy.nav.login}</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={[styles.hero, compact && styles.heroCompact]}>
           <View style={[styles.heroCopy, compact && styles.heroCopyCompact]}>
-            <View style={styles.pill}><View style={styles.pillDot} /><Text style={styles.pillText}>HARUSI YAKO, KWA UTULIVU</Text></View>
-            <Text style={[styles.heroTitle, compact && styles.heroTitleCompact]}>Panga siku yako ya kipekee, kwa urahisi.</Text>
-            <Text style={styles.heroBody}>Chereko inakusaidia kupanga wageni, mialiko, RSVP na michango sehemu moja. Anza kupanga harusi yako bila usumbufu.</Text>
+            <View style={styles.pill}><View style={styles.pillDot} /><Text style={styles.pillText}>{copy.pill}</Text></View>
+            <Text style={[styles.heroTitle, compact && styles.heroTitleCompact]}>{copy.heroTitle}</Text>
+            <Text style={styles.heroBody}>{copy.heroBody}</Text>
             <View style={[styles.heroActions, compact && styles.heroActionsCompact]}>
               <Pressable accessibilityRole="button" onPress={openRegister} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                <Text style={styles.primaryText}>Anza bure</Text><Text style={styles.arrow}>→</Text>
+                <Text style={styles.primaryText}>{copy.start}</Text><Text style={styles.arrow}>→</Text>
               </Pressable>
               <Pressable accessibilityRole="button" onPress={() => scrollTo(servicesY.current)} style={styles.secondaryButton}>
-                <Text style={styles.secondaryText}>Ona huduma</Text>
+                <Text style={styles.secondaryText}>{copy.seeServices}</Text>
               </Pressable>
             </View>
-            <View style={styles.trustLine}><Text style={styles.check}>✓</Text><Text style={styles.trustText}>Kujiunga ni bure</Text><Text style={styles.trustDot}>·</Text><Text style={styles.trustText}>Rahisi kutumia</Text></View>
+            <View style={styles.trustLine}><Text style={styles.check}>✓</Text><Text style={styles.trustText}>{copy.trust[0]}</Text><Text style={styles.trustDot}>·</Text><Text style={styles.trustText}>{copy.trust[1]}</Text></View>
           </View>
 
           <View style={[styles.heroVisual, compact && styles.heroVisualCompact]}>
             <Animated.View style={[styles.visualGlow, { backgroundColor: glowColor }]} />
             <View style={styles.cardStage}>
-              <InviteCard theme={CARD_THEMES[current]} animatedStyle={outgoingStyle} />
-              <InviteCard theme={CARD_THEMES[next]} animatedStyle={incomingStyle} />
+              <InviteCard theme={CARD_THEMES[current]} animatedStyle={outgoingStyle} copy={copy} />
+              <InviteCard theme={CARD_THEMES[next]} animatedStyle={incomingStyle} copy={copy} />
             </View>
-            <View style={styles.floatingNote}><View style={styles.floatingIcon}><Text style={styles.floatingIconText}>✓</Text></View><View><Text style={styles.floatingTitle}>Mialiko tayari</Text><Text style={styles.floatingBody}>QR code na RSVP ndani</Text></View></View>
+            <View style={styles.floatingNote}><View style={styles.floatingIcon}><Text style={styles.floatingIconText}>✓</Text></View><View><Text style={styles.floatingTitle}>{copy.note.title}</Text><Text style={styles.floatingBody}>{copy.note.body}</Text></View></View>
           </View>
         </View>
 
         <View style={styles.quickFacts}>
-          <View style={styles.fact}><Text style={styles.factValue}>BURE</Text><Text style={styles.factLabel}>kuanza kupanga</Text></View>
+          <View style={styles.fact}><Text style={styles.factValue}>{copy.facts[0].value}</Text><Text style={styles.factLabel}>{copy.facts[0].label}</Text></View>
           <View style={styles.factDivider} />
-          <View style={styles.fact}><Text style={styles.factValue}>1 sehemu</Text><Text style={styles.factLabel}>kwa taarifa za tukio</Text></View>
+          <View style={styles.fact}><Text style={styles.factValue}>{copy.facts[1].value}</Text><Text style={styles.factLabel}>{copy.facts[1].label}</Text></View>
           <View style={styles.factDivider} />
-          <View style={styles.fact}><Text style={styles.factValue}>QR + RSVP</Text><Text style={styles.factLabel}>kwa mwaliko wako</Text></View>
+          <View style={styles.fact}><Text style={styles.factValue}>{copy.facts[2].value}</Text><Text style={styles.factLabel}>{copy.facts[2].label}</Text></View>
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeading}>
-            <Text style={styles.kicker}>ANZA KWA HATUA TATU</Text>
-            <Text style={styles.sectionTitle}>Kutoka wazo hadi siku ya harusi.</Text>
+            <Text style={styles.kicker}>{copy.stepsKicker}</Text>
+            <Text style={styles.sectionTitle}>{copy.stepsTitle}</Text>
           </View>
           <View style={[styles.steps, compact && styles.stepsCompact]}>
-            {steps.map((step) => <View key={step.number} style={[styles.stepCard, compact && styles.stepCardCompact]}><Text style={styles.stepNumber}>{step.number}</Text><Text style={styles.stepTitle}>{step.title}</Text><Text style={styles.stepBody}>{step.body}</Text></View>)}
+            {copy.steps.map((step, index) => <View key={step.title} style={[styles.stepCard, compact && styles.stepCardCompact]}><Text style={styles.stepNumber}>{index + 1}</Text><Text style={styles.stepTitle}>{step.title}</Text><Text style={styles.stepBody}>{step.body}</Text></View>)}
           </View>
         </View>
 
         <View onLayout={(event) => { servicesY.current = event.nativeEvent.layout.y; }} style={[styles.section, styles.servicesSection]}>
           <View style={styles.sectionHeading}>
-            <Text style={styles.kicker}>VITU MUHIMU, PAMOJA</Text>
-            <Text style={styles.sectionTitle}>Panga harusi yako bila kupoteza taarifa.</Text>
-            <Text style={styles.sectionSub}>Zana za msingi za kusimamia wageni na shughuli yako, kwa mpangilio mmoja.</Text>
+            <Text style={styles.kicker}>{copy.servicesKicker}</Text>
+            <Text style={styles.sectionTitle}>{copy.servicesTitle}</Text>
+            <Text style={styles.sectionSub}>{copy.servicesSub}</Text>
           </View>
           <View style={[styles.serviceGrid, compact && styles.serviceGridCompact]}>
-            {services.map((service) => <View key={service.number} style={[styles.serviceCard, compact && styles.serviceCardCompact]}><Text style={styles.serviceNumber}>{service.number}</Text><Text style={styles.serviceTitle}>{service.title}</Text><Text style={styles.serviceBody}>{service.body}</Text></View>)}
+            {copy.services.map((service, index) => <View key={service.title} style={[styles.serviceCard, compact && styles.serviceCardCompact]}><Text style={styles.serviceNumber}>{String(index + 1).padStart(2, "0")}</Text><Text style={styles.serviceTitle}>{service.title}</Text><Text style={styles.serviceBody}>{service.body}</Text></View>)}
           </View>
         </View>
 
         <View style={[styles.pricingSection]} onLayout={(event) => { pricingY.current = event.nativeEvent.layout.y; }}>
           <View style={styles.sectionHeading}>
-            <Text style={styles.kicker}>E-CARD ZAIDI YA KAWAIDA</Text>
-            <Text style={[styles.sectionTitle, styles.pricingTitle]}>Chagua kadi inayokufaa.</Text>
-            <Text style={[styles.sectionSub, styles.pricingSub]}>Bei kwa kila kadi ya kidigitali. Unaweza kuanza na usajili wa bure.</Text>
+            <Text style={styles.kicker}>{copy.pricingKicker}</Text>
+            <Text style={[styles.sectionTitle, styles.pricingTitle]}>{copy.pricingTitle}</Text>
+            <Text style={[styles.sectionSub, styles.pricingSub]}>{copy.pricingSub}</Text>
           </View>
           <View style={[styles.tierGrid, compact && styles.tierGridCompact]}>
             {tiers.map((tier) => <View key={tier.name} style={[styles.tierCard, compact && styles.tierCardCompact, tier.featured && styles.tierFeatured, selectedPlan === tier.name && styles.tierSelected]}>
-              {tier.featured ? <View style={styles.popularBadge}><Text style={styles.popularText}>INAPENDWA</Text></View> : null}
+              {tier.featured ? <View style={styles.popularBadge}><Text style={styles.popularText}>{copy.popular}</Text></View> : null}
               <Text style={[styles.tierName, tier.featured && styles.tierFeaturedText]}>{tier.name}</Text>
               <View style={styles.priceRow}><Text style={[styles.currency, tier.featured && styles.tierFeaturedText]}>TSh</Text><Text style={[styles.price, tier.featured && styles.tierFeaturedText]}>{tier.price}</Text></View>
-              <Text style={[styles.perCard, tier.featured && styles.tierFeaturedMuted]}>kwa kadi moja</Text>
+              <Text style={[styles.perCard, tier.featured && styles.tierFeaturedMuted]}>{copy.perCard}</Text>
               <View style={[styles.tierRule, tier.featured && styles.tierRuleFeatured]} />
               {tier.items.map((item) => <View key={item} style={styles.tierItem}><Text style={[styles.tierCheck, tier.featured && styles.tierFeaturedText]}>✓</Text><Text style={[styles.tierItemText, tier.featured && styles.tierFeaturedText]}>{item}</Text></View>)}
               <Pressable
@@ -224,46 +235,92 @@ export default function WelcomeScreen() {
                 style={({ pressed }) => [styles.tierButton, selectedPlan === tier.name && styles.tierButtonSelected, pressed && styles.pressed]}
               >
                 <Text style={[styles.tierButtonText, selectedPlan === tier.name && styles.tierButtonTextSelected]}>
-                  {selectedPlan === tier.name ? `✓ Umechagua ${tier.name}` : `Chagua ${tier.name}`}
+                  {selectedPlan === tier.name ? fill(copy.chosen, tier.name) : fill(copy.choose, tier.name)}
                 </Text>
               </Pressable>
             </View>)}
           </View>
           <View style={styles.planBar}>
             <View style={styles.planBarCopy}>
-              <Text style={styles.planBarLabel}>KIFURUSHI ULICHOCHAGUA</Text>
-              <Text style={styles.planBarValue}>{chosenTier.name} · TSh {chosenTier.price} kwa kadi</Text>
+              <Text style={styles.planBarLabel}>{copy.planLabel}</Text>
+              <Text style={styles.planBarValue}>{chosenTier.name} · TSh {chosenTier.price} {copy.perCardShort}</Text>
             </View>
             <Pressable accessibilityRole="button" onPress={continueWithPlan} style={({ pressed }) => [styles.planBarButton, pressed && styles.pressed]}>
-              <Text style={styles.planBarButtonText}>Endelea na {chosenTier.name}</Text><Text style={styles.planBarButtonText}>→</Text>
+              <Text style={styles.planBarButtonText}>{fill(copy.continueWith, chosenTier.name)}</Text><Text style={styles.planBarButtonText}>→</Text>
             </Pressable>
           </View>
-          <Text style={styles.creditNote}>SMS: TSh 25 kwa ujumbe · WhatsApp: TSh 75 kwa ujumbe</Text>
+          <Text style={styles.creditNote}>{copy.creditNote}</Text>
         </View>
 
-        <View style={styles.bottomCta}>
-          <View style={styles.ctaCopy}><Text style={styles.kicker}>SASA NI WAKATI WAKO</Text><Text style={styles.ctaTitle}>Anza kupanga kumbukumbu nzuri.</Text><Text style={styles.ctaBody}>Fungua akaunti yako na uanze kuweka maelezo ya tukio lako.</Text></View>
-          <Pressable accessibilityRole="button" onPress={openRegister} style={styles.ctaButton}><Text style={styles.ctaButtonText}>Jisajili bure</Text><Text style={styles.ctaArrow}>→</Text></Pressable>
+        <View style={[styles.bottomCta, compact && styles.bottomCtaCompact]}>
+          <View style={styles.ctaCopy}><Text style={[styles.kicker, styles.ctaKicker]}>{copy.ctaKicker}</Text><Text style={styles.ctaTitle}>{copy.ctaTitle}</Text><Text style={styles.ctaBody}>{copy.ctaBody}</Text></View>
+          <Pressable accessibilityRole="button" onPress={openRegister} style={styles.ctaButton}><Text style={styles.ctaButtonText}>{copy.ctaButton}</Text><Text style={styles.ctaArrow}>→</Text></Pressable>
         </View>
 
-        <View style={styles.footer}><View style={styles.footerBrand}><Text style={styles.footerName}>chereko</Text><Text style={styles.footerTagline}>Panga siku yako ya kipekee.</Text></View><View style={[styles.footerLinks, compact && styles.footerLinksCompact]}><Pressable onPress={() => scrollTo(servicesY.current)}><Text style={styles.footerLink}>Huduma</Text></Pressable><Pressable onPress={() => scrollTo(pricingY.current)}><Text style={styles.footerLink}>Bei za e-card</Text></Pressable><Pressable onPress={openLogin}><Text style={styles.footerLink}>Ingia</Text></Pressable></View><Text style={styles.copyright}>© Chereko</Text></View>
+        <View style={[styles.footer, compact && styles.footerCompact]}>
+          <View style={styles.footerBrand}><Text style={styles.footerName}>chereko</Text><Text style={styles.footerTagline}>{copy.footerTagline}</Text></View>
+          <View style={[styles.footerLinks, compact && styles.footerLinksCompact]}>
+            <Pressable onPress={() => scrollTo(servicesY.current)}><Text style={styles.footerLink}>{copy.nav.services}</Text></Pressable>
+            <Pressable onPress={() => scrollTo(pricingY.current)}><Text style={styles.footerLink}>{copy.nav.pricing}</Text></Pressable>
+            <Pressable onPress={openLogin}><Text style={styles.footerLink}>{copy.nav.login}</Text></Pressable>
+          </View>
+          <View style={[styles.footerContact, compact && styles.footerContactCompact]}>
+            <Text style={styles.footerContactTitle}>{copy.contactTitle}</Text>
+            <Pressable accessibilityRole="link" onPress={() => Linking.openURL(`tel:${CONTACT_PHONE_LINK}`)} style={styles.footerContactRow}>
+              <Text style={styles.footerContactLabel}>{copy.phoneLabel}:</Text><Text style={styles.footerContactValue}>{CONTACT_PHONE_DISPLAY}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="link" onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)} style={styles.footerContactRow}>
+              <Text style={styles.footerContactLabel}>{copy.emailLabel}:</Text><Text style={styles.footerContactValue}>{CONTACT_EMAIL}</Text>
+            </Pressable>
+          </View>
+          <GooglePlayBadge copy={copy} onPress={PLAY_STORE_URL ? () => Linking.openURL(PLAY_STORE_URL) : undefined} />
+          <Text style={styles.copyright}>{copy.copyright}</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function InviteCard({ theme: card, animatedStyle }: { theme: CardTheme; animatedStyle: ComponentProps<typeof Animated.View>["style"] }) {
+function InviteCard({ theme: card, animatedStyle, copy }: { theme: CardTheme; animatedStyle: ComponentProps<typeof Animated.View>["style"]; copy: typeof COPY["sw"] }) {
   return (
     <Animated.View style={[styles.inviteCard, styles.inviteCardLayer, { backgroundColor: card.bg, borderColor: card.border }, animatedStyle]}>
-      <View style={styles.cardTop}><Text style={[styles.cardBrand, { color: card.text }]}>CHEREKO</Text><Text style={[styles.cardTag, { color: card.accent }]}>MWALIKO</Text></View>
+      <View style={styles.cardTop}><Text style={[styles.cardBrand, { color: card.text }]}>CHEREKO</Text><Text style={[styles.cardTag, { color: card.accent }]}>{copy.card.tag}</Text></View>
       <View style={styles.cardOrnament}><View style={[styles.cardRing, { borderColor: card.ring }]} /><Text style={[styles.cardHeart, { color: card.accent }]}>♡</Text><View style={[styles.cardRingSecond, { borderColor: card.ring }]} /></View>
-      <Text style={[styles.cardOverline, { color: card.muted }]}>TUNAFURAHI KUKUALIKA</Text>
+      <Text style={[styles.cardOverline, { color: card.muted }]}>{copy.card.overline}</Text>
       <Text style={[styles.cardNames, { color: card.text }]}>Amina <Text style={[styles.cardAmp, { color: card.accent }]}>&</Text> Baraka</Text>
       <View style={[styles.cardRule, { backgroundColor: card.ring }]} />
-      <Text style={[styles.cardDate, { color: card.text }]}>JUMAMOSI · 14 JUNI · 2026</Text>
+      <Text style={[styles.cardDate, { color: card.text }]}>{copy.card.date}</Text>
       <Text style={[styles.cardVenue, { color: card.muted }]}>Dar es Salaam, Tanzania</Text>
-      <View style={[styles.cardFooter, { borderColor: card.border }]}><Text style={[styles.cardRsvp, { color: card.accent }]}>THAMINISHA UHUDHURIAJI</Text><View style={styles.qrMock}>{Array.from({ length: 9 }, (_, index) => <View key={index} style={[styles.qrPixel, index % 3 !== 1 && styles.qrPixelActive]} />)}</View></View>
+      <View style={[styles.cardFooter, { borderColor: card.border }]}><Text style={[styles.cardRsvp, { color: card.accent }]}>{copy.card.rsvp}</Text><View style={styles.qrMock}>{Array.from({ length: 9 }, (_, index) => <View key={index} style={[styles.qrPixel, index % 3 !== 1 && styles.qrPixelActive]} />)}</View></View>
     </Animated.View>
+  );
+}
+
+function GooglePlayBadge({ copy, onPress }: { copy: typeof COPY["sw"]; onPress?: () => void }) {
+  const badge = (
+    <>
+      <Svg width={25} height={25} viewBox="0 0 24 24" accessibilityLabel={copy.playStoreName}>
+        <Path d="M3.3 2.1 12.6 12l-9.3 9.9c-.4-.2-.6-.7-.6-1.2V3.3c0-.5.2-1 .6-1.2Z" fill="#34A853" />
+        <Path d="m3.3 2.1 12.2 6.7 3.5-2L5.8 1.2c-1-.5-2-.1-2.5.9Z" fill="#4285F4" />
+        <Path d="m3.3 21.9 12.2-6.7 3.5 2-13.2 5.6c-1 .5-2 .1-2.5-.9Z" fill="#FBBC04" />
+        <Path d="m15.5 8.8 6-3.3c.9.5 1.4.8 1.4.8.8.5.8 1.5 0 2l-5 2.8-2.4-2.3Z" fill="#EA4335" />
+        <Path d="m15.5 15.2 6 3.3c.9-.5 1.4-.8 1.4-.8.8-.5.8-1.5 0-2l-5-2.8-2.4 2.3Z" fill="#EA4335" />
+      </Svg>
+      <View style={styles.playBadgeCopy}>
+        <Text style={styles.playBadgeTop}>{copy.playTop}</Text>
+        <Text style={styles.playBadgeName}>{copy.playStoreName}</Text>
+      </View>
+    </>
+  );
+
+  return onPress ? (
+    <Pressable accessibilityRole="link" accessibilityLabel={`${copy.playTop} ${copy.playStoreName}`} onPress={onPress} style={styles.playBadge}>
+      {badge}
+    </Pressable>
+  ) : (
+    <View accessibilityRole="image" accessibilityLabel={`${copy.playTop} ${copy.playStoreName}`} style={styles.playBadge}>
+      {badge}
+    </View>
   );
 }
 
@@ -279,6 +336,10 @@ const styles = StyleSheet.create({
   brandName: { color: colors.ink, fontFamily: "serif", fontSize: 25, fontWeight: "700", letterSpacing: -0.5 },
   nav: { flexDirection: "row", alignItems: "center", gap: 34 },
   navText: { color: colors.muted, fontSize: 13, fontWeight: "600" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerUtilityButton: { minWidth: 36, height: 36, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  headerUtilityText: { color: colors.ink, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  themeIcon: { color: colors.ink, fontSize: 17, lineHeight: 20 },
   loginButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 22, paddingVertical: 10, paddingHorizontal: 20 },
   loginText: { color: colors.ink, fontWeight: "700", fontSize: 13 },
   hero: { minHeight: 570, paddingHorizontal: 56, paddingVertical: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 46, backgroundColor: colors.paper },
@@ -389,19 +450,32 @@ const styles = StyleSheet.create({
   planBarButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   creditNote: { color: "#C0BBCB", fontSize: 11, textAlign: "center", marginTop: 20 },
   bottomCta: { marginHorizontal: 32, marginVertical: 62, padding: 30, borderRadius: 18, backgroundColor: "#F4EAE7", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
+  bottomCtaCompact: { marginHorizontal: 18, marginVertical: 40, padding: 22, flexDirection: "column", alignItems: "stretch" },
   ctaCopy: { flex: 1 },
-  ctaTitle: { color: colors.ink, fontFamily: "serif", fontWeight: "700", fontSize: 28, lineHeight: 34 },
-  ctaBody: { color: colors.muted, fontSize: 13, lineHeight: 21, marginTop: 8 },
+  ctaKicker: { color: "#5632A8" },
+  ctaTitle: { color: "#302032", fontFamily: "serif", fontWeight: "700", fontSize: 28, lineHeight: 34 },
+  ctaBody: { color: "#655965", fontSize: 13, lineHeight: 21, marginTop: 8 },
   ctaButton: { minHeight: 50, paddingHorizontal: 20, borderRadius: 25, backgroundColor: colors.plum, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14 },
-  ctaButtonText: { color: colors.white, fontSize: 13, fontWeight: "700" },
-  ctaArrow: { color: colors.white, fontSize: 17 },
+  ctaButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+  ctaArrow: { color: "#FFFFFF", fontSize: 17 },
   footer: { minHeight: 150, paddingHorizontal: 32, paddingVertical: 24, borderTopWidth: 1, borderColor: colors.line, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 },
+  footerCompact: { flexDirection: "column", alignItems: "flex-start", paddingHorizontal: 22, gap: 20 },
   footerBrand: { gap: 5 },
   footerName: { color: colors.ink, fontFamily: "serif", fontSize: 24, fontWeight: "700" },
   footerTagline: { color: colors.muted, fontSize: 11 },
   footerLinks: { flexDirection: "row", gap: 22 },
   footerLinksCompact: { width: "100%", justifyContent: "space-between" },
   footerLink: { color: colors.muted, fontSize: 11, fontWeight: "600" },
+  footerContact: { minWidth: 220, gap: 5 },
+  footerContactCompact: { width: "100%", maxWidth: 390 },
+  footerContactTitle: { color: colors.ink, fontSize: 11, fontWeight: "700", marginBottom: 2 },
+  footerContactRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
+  footerContactLabel: { color: colors.muted, fontSize: 10 },
+  footerContactValue: { color: colors.ink, fontSize: 10, fontWeight: "600" },
+  playBadge: { minWidth: 160, height: 52, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 7, borderWidth: 1, borderColor: "#555555", backgroundColor: "#111111", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  playBadgeCopy: { gap: 1 },
+  playBadgeTop: { color: "#E6E6E6", fontSize: 8, lineHeight: 10, letterSpacing: 0.4 },
+  playBadgeName: { color: "#FFFFFF", fontSize: 15, lineHeight: 18, fontWeight: "600" },
   copyright: { color: colors.muted, fontSize: 10 },
   pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
 });
