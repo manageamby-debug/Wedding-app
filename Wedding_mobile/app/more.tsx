@@ -18,7 +18,6 @@ const tools: { label: string; icon: IconName; destination: Destination }[] = [
   { label: "Invitations", icon: "mail", destination: "invite" },
   { label: "Pledges", icon: "heart", destination: "budget" },
   { label: "Committees", icon: "users", destination: "event" },
-  { label: "Vendors", icon: "vendors", destination: "story" },
 ];
 const preferences: { label: string; icon: IconName; destination: Destination }[] = [
   { label: "Appearance", icon: "theme", destination: "appearance" },
@@ -52,7 +51,7 @@ export default function MoreScreen() {
     return () => { live = false; };
   }, []));
 
-  const logout = async () => { await signOut(); router.replace("/login"); };
+  const logout = async () => { await signOut(); router.replace("/"); };
   const confirmLogout = () => {
     if (typeof window !== "undefined" && typeof window.confirm === "function") {
       if (window.confirm("Una uhakika unataka kutoka kwenye akaunti yako?")) void logout();

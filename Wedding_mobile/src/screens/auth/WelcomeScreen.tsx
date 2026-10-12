@@ -1,8 +1,9 @@
-import { useRef } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { colors as theme } from "../../constants/theme";
+import { PLAN_PRICES, type PlanName } from "../../constants/plans";
 
 const colors = {
   ink: theme.text,
@@ -15,6 +16,33 @@ const colors = {
   white: theme.surface,
   pale: theme.accentSoft,
 };
+
+// Ten invitation-card palettes. The hero card fades from one to the next.
+type CardTheme = {
+  bg: string;      // card background
+  text: string;    // brand, names, date
+  muted: string;   // overline, venue
+  accent: string;  // tag, heart, ampersand, RSVP label
+  ring: string;    // wedding rings and divider line
+  border: string;  // card and footer borders
+  glow: string;    // circle behind the card
+};
+
+const CARD_THEMES: CardTheme[] = [
+  { bg: "#2A1B4A", text: "#FFFFFF", muted: "#BFB3DD", accent: "#F5B942", ring: "#F5B942", border: "#4B3A78", glow: "#6B4BB8" }, // Royal Plum
+  { bg: "#0F3D32", text: "#F1FFF8", muted: "#A8D5C4", accent: "#F2C14E", ring: "#5EC79A", border: "#1F6B58", glow: "#1E8A6A" }, // Emerald
+  { bg: "#FCE8EC", text: "#4A1D2B", muted: "#8A5A68", accent: "#D6336C", ring: "#E8899F", border: "#F2C2CE", glow: "#F5B3C3" }, // Rose Blush
+  { bg: "#0B2545", text: "#F4F8FF", muted: "#A9BEDD", accent: "#5DA9FF", ring: "#8EC5FF", border: "#1F4678", glow: "#1D5FA8" }, // Ocean Navy
+  { bg: "#E8553A", text: "#FFF5EC", muted: "#FFD9C9", accent: "#FFE08A", ring: "#FFE08A", border: "#F58A72", glow: "#FF9B7A" }, // Sunset Coral
+  { bg: "#EEE8FF", text: "#2D2250", muted: "#6F6498", accent: "#7C5CFA", ring: "#B6A4FF", border: "#D5CAFF", glow: "#CFC3FF" }, // Lavender Dream
+  { bg: "#FBF3DF", text: "#3A2D0E", muted: "#7D6A3C", accent: "#B8860B", ring: "#D4A93C", border: "#EBD9A4", glow: "#F0DFA6" }, // Champagne Gold
+  { bg: "#0E5A5F", text: "#ECFFFD", muted: "#A7DDD9", accent: "#FFD166", ring: "#7FE0D5", border: "#1B8087", glow: "#1A8F94" }, // Teal Lagoon
+  { bg: "#5A1228", text: "#FFF1F3", muted: "#E3B3BE", accent: "#F7C873", ring: "#F7C873", border: "#8A2A47", glow: "#A02A4F" }, // Burgundy Wine
+  { bg: "#DDE8D5", text: "#1F3320", muted: "#55704F", accent: "#2F7D4B", ring: "#8FB98A", border: "#BCD1B1", glow: "#B9D3B0" }, // Forest Sage
+];
+
+const THEME_HOLD_MS = 2800;
+const SPIN_MS = 1000;
 
 const services = [
   { number: "01", title: "Mialiko ya kidigitali", body: "Tengeneza mwaliko wenye QR code na link ya RSVP kwa kila mgeni." },
@@ -29,10 +57,10 @@ const steps = [
   { number: "3", title: "Alika na fuatilia", body: "Ongeza wageni, tuma mialiko na angalia RSVP." },
 ];
 
-const tiers = [
-  { name: "Starter", price: "500", featured: false, items: ["Taarifa na namba ya kadi", "SMS na email link", "Ripoti ya PDF"] },
-  { name: "Plus", price: "750", featured: true, items: ["Vyote vya Starter", "WhatsApp", "QR code na template", "Link ya RSVP"] },
-  { name: "Premium", price: "950", featured: false, items: ["Vyote vya Plus", "Picha ya wanandoa", "Ujumbe wa shukrani"] },
+const tiers: { name: PlanName; price: string; featured: boolean; items: string[] }[] = [
+  { name: "Starter", price: PLAN_PRICES.Starter, featured: false, items: ["Taarifa na namba ya kadi", "SMS na email link", "Ripoti ya PDF"] },
+  { name: "Plus", price: PLAN_PRICES.Plus, featured: true, items: ["Vyote vya Starter", "WhatsApp", "QR code na template", "Link ya RSVP"] },
+  { name: "Premium", price: PLAN_PRICES.Premium, featured: false, items: ["Vyote vya Plus", "Picha ya wanandoa", "Ujumbe wa shukrani"] },
 ];
 
 export default function WelcomeScreen() {
@@ -42,8 +70,62 @@ export default function WelcomeScreen() {
   const servicesY = useRef(0);
   const pricingY = useRef(0);
 
+  // 0 = current card showing, 1 = next card fully in place.
+  const spin = useRef(new Animated.Value(0)).current;
+  const [current, setCurrent] = useState(0);
+  const next = (current + 1) % CARD_THEMES.length;
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: SPIN_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: false, // the glow colour needs the JS driver
+      }).start(({ finished }) => {
+        if (!finished || cancelled) return;
+        setCurrent((value) => (value + 1) % CARD_THEMES.length);
+        spin.setValue(0);
+      });
+    }, THEME_HOLD_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      spin.stopAnimation();
+    };
+  }, [current, spin]);
+
+  // The old card spins away to the left while the next one spins in from the right.
+  const range = (from: number | string, to: number | string) => spin.interpolate({ inputRange: [0, 1], outputRange: [from, to] as number[] | string[] });
+  const outgoingStyle = {
+    opacity: spin.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.6, 0] }),
+    transform: [
+      { perspective: 900 },
+      { translateX: range(0, -150) },
+      { rotateY: range("0deg", "-75deg") },
+      { rotateZ: range("-2deg", "-16deg") },
+      { scale: range(1, 0.85) },
+    ],
+  };
+  const incomingStyle = {
+    opacity: spin.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0.6, 1] }),
+    transform: [
+      { perspective: 900 },
+      { translateX: range(150, 0) },
+      { rotateY: range("75deg", "0deg") },
+      { rotateZ: range("14deg", "-2deg") },
+      { scale: range(0.85, 1) },
+    ],
+  };
+  const glowColor = range(CARD_THEMES[current].glow, CARD_THEMES[next].glow);
+
   const scrollTo = (y: number) => scrollRef.current?.scrollTo({ y, animated: true });
   const openRegister = () => router.push("/register");
+  const [selectedPlan, setSelectedPlan] = useState<PlanName>("Plus");
+  const chosenTier = tiers.find((tier) => tier.name === selectedPlan) ?? tiers[1];
+  const continueWithPlan = () => router.push({ pathname: "/register", params: { plan: selectedPlan } });
   const openLogin = () => router.push("/login");
 
   return (
@@ -83,16 +165,10 @@ export default function WelcomeScreen() {
           </View>
 
           <View style={[styles.heroVisual, compact && styles.heroVisualCompact]}>
-            <View style={styles.visualGlow} />
-            <View style={styles.inviteCard}>
-              <View style={styles.cardTop}><Text style={styles.cardBrand}>CHEREKO</Text><Text style={styles.cardTag}>MWALIKO</Text></View>
-              <View style={styles.cardOrnament}><View style={styles.cardRing} /><Text style={styles.cardHeart}>♡</Text><View style={styles.cardRingSecond} /></View>
-              <Text style={styles.cardOverline}>TUNAFURAHI KUKUALIKA</Text>
-              <Text style={styles.cardNames}>Amina <Text style={styles.cardAmp}>&</Text> Baraka</Text>
-              <View style={styles.cardRule} />
-              <Text style={styles.cardDate}>JUMAMOSI · 14 JUNI · 2026</Text>
-              <Text style={styles.cardVenue}>Dar es Salaam, Tanzania</Text>
-              <View style={styles.cardFooter}><Text style={styles.cardRsvp}>THAMINISHA UHUDHURIAJI</Text><View style={styles.qrMock}>{Array.from({ length: 9 }, (_, index) => <View key={index} style={[styles.qrPixel, index % 3 !== 1 && styles.qrPixelActive]} />)}</View></View>
+            <Animated.View style={[styles.visualGlow, { backgroundColor: glowColor }]} />
+            <View style={styles.cardStage}>
+              <InviteCard theme={CARD_THEMES[current]} animatedStyle={outgoingStyle} />
+              <InviteCard theme={CARD_THEMES[next]} animatedStyle={incomingStyle} />
             </View>
             <View style={styles.floatingNote}><View style={styles.floatingIcon}><Text style={styles.floatingIconText}>✓</Text></View><View><Text style={styles.floatingTitle}>Mialiko tayari</Text><Text style={styles.floatingBody}>QR code na RSVP ndani</Text></View></View>
           </View>
@@ -134,15 +210,33 @@ export default function WelcomeScreen() {
             <Text style={[styles.sectionSub, styles.pricingSub]}>Bei kwa kila kadi ya kidigitali. Unaweza kuanza na usajili wa bure.</Text>
           </View>
           <View style={[styles.tierGrid, compact && styles.tierGridCompact]}>
-            {tiers.map((tier) => <View key={tier.name} style={[styles.tierCard, compact && styles.tierCardCompact, tier.featured && styles.tierFeatured]}>
+            {tiers.map((tier) => <View key={tier.name} style={[styles.tierCard, compact && styles.tierCardCompact, tier.featured && styles.tierFeatured, selectedPlan === tier.name && styles.tierSelected]}>
               {tier.featured ? <View style={styles.popularBadge}><Text style={styles.popularText}>INAPENDWA</Text></View> : null}
               <Text style={[styles.tierName, tier.featured && styles.tierFeaturedText]}>{tier.name}</Text>
               <View style={styles.priceRow}><Text style={[styles.currency, tier.featured && styles.tierFeaturedText]}>TSh</Text><Text style={[styles.price, tier.featured && styles.tierFeaturedText]}>{tier.price}</Text></View>
               <Text style={[styles.perCard, tier.featured && styles.tierFeaturedMuted]}>kwa kadi moja</Text>
               <View style={[styles.tierRule, tier.featured && styles.tierRuleFeatured]} />
               {tier.items.map((item) => <View key={item} style={styles.tierItem}><Text style={[styles.tierCheck, tier.featured && styles.tierFeaturedText]}>✓</Text><Text style={[styles.tierItemText, tier.featured && styles.tierFeaturedText]}>{item}</Text></View>)}
-              <Pressable accessibilityRole="button" onPress={openRegister} style={[styles.tierButton, tier.featured && styles.tierButtonFeatured]}><Text style={[styles.tierButtonText, tier.featured && styles.tierButtonTextFeatured]}>Chagua {tier.name}</Text></Pressable>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selectedPlan === tier.name }}
+                onPress={() => setSelectedPlan(tier.name)}
+                style={({ pressed }) => [styles.tierButton, selectedPlan === tier.name && styles.tierButtonSelected, pressed && styles.pressed]}
+              >
+                <Text style={[styles.tierButtonText, selectedPlan === tier.name && styles.tierButtonTextSelected]}>
+                  {selectedPlan === tier.name ? `✓ Umechagua ${tier.name}` : `Chagua ${tier.name}`}
+                </Text>
+              </Pressable>
             </View>)}
+          </View>
+          <View style={styles.planBar}>
+            <View style={styles.planBarCopy}>
+              <Text style={styles.planBarLabel}>KIFURUSHI ULICHOCHAGUA</Text>
+              <Text style={styles.planBarValue}>{chosenTier.name} · TSh {chosenTier.price} kwa kadi</Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={continueWithPlan} style={({ pressed }) => [styles.planBarButton, pressed && styles.pressed]}>
+              <Text style={styles.planBarButtonText}>Endelea na {chosenTier.name}</Text><Text style={styles.planBarButtonText}>→</Text>
+            </Pressable>
           </View>
           <Text style={styles.creditNote}>SMS: TSh 25 kwa ujumbe · WhatsApp: TSh 75 kwa ujumbe</Text>
         </View>
@@ -158,7 +252,24 @@ export default function WelcomeScreen() {
   );
 }
 
+function InviteCard({ theme: card, animatedStyle }: { theme: CardTheme; animatedStyle: ComponentProps<typeof Animated.View>["style"] }) {
+  return (
+    <Animated.View style={[styles.inviteCard, styles.inviteCardLayer, { backgroundColor: card.bg, borderColor: card.border }, animatedStyle]}>
+      <View style={styles.cardTop}><Text style={[styles.cardBrand, { color: card.text }]}>CHEREKO</Text><Text style={[styles.cardTag, { color: card.accent }]}>MWALIKO</Text></View>
+      <View style={styles.cardOrnament}><View style={[styles.cardRing, { borderColor: card.ring }]} /><Text style={[styles.cardHeart, { color: card.accent }]}>♡</Text><View style={[styles.cardRingSecond, { borderColor: card.ring }]} /></View>
+      <Text style={[styles.cardOverline, { color: card.muted }]}>TUNAFURAHI KUKUALIKA</Text>
+      <Text style={[styles.cardNames, { color: card.text }]}>Amina <Text style={[styles.cardAmp, { color: card.accent }]}>&</Text> Baraka</Text>
+      <View style={[styles.cardRule, { backgroundColor: card.ring }]} />
+      <Text style={[styles.cardDate, { color: card.text }]}>JUMAMOSI · 14 JUNI · 2026</Text>
+      <Text style={[styles.cardVenue, { color: card.muted }]}>Dar es Salaam, Tanzania</Text>
+      <View style={[styles.cardFooter, { borderColor: card.border }]}><Text style={[styles.cardRsvp, { color: card.accent }]}>THAMINISHA UHUDHURIAJI</Text><View style={styles.qrMock}>{Array.from({ length: 9 }, (_, index) => <View key={index} style={[styles.qrPixel, index % 3 !== 1 && styles.qrPixelActive]} />)}</View></View>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
+  cardStage: { width: 278, height: 336 },
+  inviteCardLayer: { position: "absolute", top: 0, left: 0, width: 278, height: 336, pointerEvents: "none" },
   safe: { flex: 1, backgroundColor: colors.white },
   page: { paddingBottom: 0 },
   header: { height: 76, paddingHorizontal: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.white, borderBottomWidth: 1, borderColor: colors.line, zIndex: 2 },
@@ -212,7 +323,7 @@ const styles = StyleSheet.create({
   cardRsvp: { color: colors.plum, fontSize: 7, fontWeight: "800", letterSpacing: 0.6 },
   qrMock: { width: 35, height: 35, padding: 3, backgroundColor: "#FFF", borderWidth: 1, borderColor: colors.line, flexDirection: "row", flexWrap: "wrap", gap: 2 },
   qrPixel: { width: 7, height: 7, backgroundColor: "#FFFFFF" },
-  qrPixelActive: { backgroundColor: colors.ink },
+  qrPixelActive: { backgroundColor: "#1A1A1A" },
   floatingNote: { position: "absolute", right: -6, bottom: 44, backgroundColor: colors.white, borderRadius: 12, padding: 12, flexDirection: "row", alignItems: "center", gap: 9, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
   floatingIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#E7F5EF", alignItems: "center", justifyContent: "center" },
   floatingIconText: { color: "#159C72", fontSize: 14, fontWeight: "800" },
@@ -251,6 +362,7 @@ const styles = StyleSheet.create({
   tierCard: { flex: 1, minHeight: 310, padding: 21, borderWidth: 1, borderColor: theme.border, borderRadius: 24, backgroundColor: theme.surface },
   tierCardCompact: { width: "100%" },
   tierFeatured: { backgroundColor: colors.white, borderColor: colors.white },
+  tierSelected: { borderColor: colors.gold, borderWidth: 2 },
   popularBadge: { alignSelf: "flex-start", paddingHorizontal: 9, paddingVertical: 5, backgroundColor: "#F4EAE7", borderRadius: 12, marginBottom: 10 },
   popularText: { color: "#9D5866", fontSize: 8, fontWeight: "800", letterSpacing: 0.8 },
   tierName: { color: theme.text, fontSize: 13, fontWeight: "700" },
@@ -266,9 +378,15 @@ const styles = StyleSheet.create({
   tierCheck: { color: "#C6A276", fontSize: 12, fontWeight: "800" },
   tierItemText: { color: theme.text, fontSize: 11, lineHeight: 16, flex: 1 },
   tierButton: { minHeight: 42, borderWidth: 1, borderColor: "#777184", borderRadius: 22, marginTop: 8, alignItems: "center", justifyContent: "center" },
-  tierButtonFeatured: { backgroundColor: colors.plum, borderColor: colors.plum },
-  tierButtonText: { color: colors.white, fontSize: 11, fontWeight: "700" },
-  tierButtonTextFeatured: { color: colors.white },
+  tierButtonSelected: { backgroundColor: colors.plum, borderColor: colors.plum },
+  tierButtonText: { color: theme.text, fontSize: 11, fontWeight: "700" },
+  tierButtonTextSelected: { color: "#FFFFFF" },
+  planBar: { width: "100%", maxWidth: 1020, marginTop: 22, padding: 16, borderRadius: 18, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 },
+  planBarCopy: { flex: 1, minWidth: 180 },
+  planBarLabel: { color: "#B9B4C6", fontSize: 9, fontWeight: "800", letterSpacing: 1.4 },
+  planBarValue: { color: theme.text, fontSize: 16, fontWeight: "700", marginTop: 5 },
+  planBarButton: { minHeight: 48, paddingHorizontal: 22, borderRadius: 24, backgroundColor: colors.plum, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14 },
+  planBarButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   creditNote: { color: "#C0BBCB", fontSize: 11, textAlign: "center", marginTop: 20 },
   bottomCta: { marginHorizontal: 32, marginVertical: 62, padding: 30, borderRadius: 18, backgroundColor: "#F4EAE7", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
   ctaCopy: { flex: 1 },

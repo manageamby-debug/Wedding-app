@@ -1,9 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { colors } from "../src/constants/theme";
+import { getEventTypeConfig } from "../src/constants/eventTypes";
 
 type EventCardData = {
   id: number;
+  event_type?: string;
   name: string;
   couple_names: string;
   groom_name: string;
@@ -22,7 +24,9 @@ type Props = {
 
 export default function EventCard({ event }: Props) {
   const router = useRouter();
-  const coupleNames = event.couple_names || `${event.groom_name} & ${event.bride_name}`;
+  const typeConfig = getEventTypeConfig(event.event_type);
+  const coupleNames = event.couple_names
+    || [event.groom_name, event.bride_name].filter(Boolean).join(" & ");
   const daysRemaining = getDaysRemaining(event.event_date);
 
   return (
@@ -32,6 +36,7 @@ export default function EventCard({ event }: Props) {
       onPress={() => router.push(`/event/${event.id}`)}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
+      <Text style={styles.typeBadge}>{typeConfig.icon} {typeConfig.label.toUpperCase()}</Text>
       <Text style={styles.title}>{event.name || coupleNames}</Text>
       <Text style={styles.coupleNames}>{coupleNames}</Text>
       <Text style={styles.status}>Status: {getStatusLabel(event.status)}</Text>
@@ -92,6 +97,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   cardPressed: { opacity: 0.78 },
+  typeBadge: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.2, marginBottom: 6 },
   title: { color: colors.text, fontSize: 15, fontWeight: "700" },
   coupleNames: { color: colors.textMuted, fontSize: 12, marginTop: 5 },
   status: { color: colors.accent, fontSize: 12, fontWeight: "700", marginTop: 5 },

@@ -14,6 +14,10 @@ class InvitationResponse(BaseModel):
     groom_name: str
     bride_name: str
 
+    event_type: str = "wedding"
+    event_name: str = ""
+    host_names: str = ""
+
     event_date: date
     event_time: time
     venue_name: str

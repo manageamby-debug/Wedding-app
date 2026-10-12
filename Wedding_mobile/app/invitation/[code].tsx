@@ -5,6 +5,7 @@ import { useLocalSearchParams } from "expo-router";
 import api from "../../src/services/api";
 import InvitationCode from "../../src/components/InvitationCode";
 import { colors } from "../../src/constants/theme";
+import { getEventTypeConfig } from "../../src/constants/eventTypes";
 
 type ApiErrorResponse = {
   detail?: string | { msg?: string }[];
@@ -19,6 +20,9 @@ type PublicInvitation = {
   guest_name: string;
   groom_name: string;
   bride_name: string;
+  event_type?: string;
+  event_name?: string;
+  host_names?: string;
   event_date: string;
   event_time: string;
   venue_name: string;
@@ -156,11 +160,16 @@ export default function PublicInvitation() {
   }
 
   const submittedLabel = OPTIONS.find((option) => option.value === submittedStatus)?.label;
+  const typeConfig = getEventTypeConfig(invitation?.event_type);
+  const hostNames = invitation
+    ? invitation.host_names
+      || [invitation.groom_name, invitation.bride_name].filter(Boolean).join(" & ")
+    : "";
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>YOU’RE INVITED</Text>
+        <Text style={styles.eyebrow}>{invitation ? typeConfig.inviteEyebrow : "YOU’RE INVITED"}</Text>
 
         {isLoading ? <Text style={styles.message}>Loading your invitation…</Text> : null}
         {!isLoading && loadError ? (
@@ -170,7 +179,10 @@ export default function PublicInvitation() {
         {invitation ? (
           <>
             <Text style={styles.greeting}>Dear {invitation.guest_name},</Text>
-            <Text style={styles.coupleNames}>{invitation.groom_name} &amp; {invitation.bride_name}</Text>
+            <Text style={styles.coupleNames}>{hostNames}</Text>
+            {typeConfig.value !== "wedding" && invitation.event_name ? (
+              <Text style={styles.eventName}>{typeConfig.icon} {invitation.event_name}</Text>
+            ) : null}
 
             <View style={styles.details}>
               <DetailRow label="Date" value={invitation.event_date} />
@@ -185,7 +197,7 @@ export default function PublicInvitation() {
               <InvitationCode code={invitation.invitation_code} />
             </View>
 
-            <Text style={styles.question}>Will you attend?</Text>
+            <Text style={styles.question}>{typeConfig.inviteQuestion}</Text>
             <View style={styles.options}>
               {OPTIONS.map((option) => (
                 <Pressable
@@ -246,6 +258,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.accent, fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 14 },
   greeting: { color: colors.textMuted, fontSize: 14 },
   coupleNames: { color: colors.text, fontSize: 24, fontWeight: "700", marginTop: 8, marginBottom: 20 },
+  eventName: { color: colors.accent, fontSize: 14, fontWeight: "600", marginTop: -12, marginBottom: 20 },
   details: { borderTopWidth: 1, borderTopColor: colors.border },
   detailRow: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
   lastRow: { borderBottomWidth: 0 },

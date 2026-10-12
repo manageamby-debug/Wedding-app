@@ -171,6 +171,9 @@ export default function LoginScreen() {
           <Text style={styles.footerLink}>Sign up</Text>
         </Pressable>
       </View>
+      <Pressable accessibilityRole="link" onPress={() => router.replace("/")} style={styles.homeLink}>
+        <Text style={styles.footerLink}>Rudi kwenye ukurasa wa mwanzo</Text>
+      </Pressable>
       <Text style={styles.legal}>By continuing, you agree to our <Text style={styles.legalLink}>Terms</Text> and <Text style={styles.legalLink}>Privacy Policy</Text>.</Text>
     </AuthLayout>
   );
@@ -193,6 +196,7 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 5, marginTop: 22 },
   footerText: { color: colors.textMuted, fontSize: 13 },
   footerLink: { color: colors.link, fontSize: 13, fontWeight: "700" },
+  homeLink: { alignSelf: "center", marginTop: 14, paddingVertical: 4 },
   legal: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: "center", marginTop: 19 },
   legalLink: { color: colors.link },
   pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },

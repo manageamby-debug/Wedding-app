@@ -13,11 +13,13 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import api from "../../src/services/api";
 import { colors } from "../../src/constants/theme";
+import { EVENT_TYPES, getEventTypeConfig, type EventType } from "../../src/constants/eventTypes";
 
 type EventStatus = "draft" | "published" | "completed" | "cancelled";
 
 type EventResponse = {
   id: number;
+  event_type?: EventType;
   name: string;
   description: string | null;
   target_contribution: number | string;
@@ -50,6 +52,7 @@ export default function EditEventScreen() {
   const eventId = firstParam(params.id);
 
   const [eventName, setEventName] = useState("");
+  const [eventType, setEventType] = useState<EventType>("wedding");
   const [description, setDescription] = useState("");
   const [targetContribution, setTargetContribution] = useState("0");
   const [groomName, setGroomName] = useState("");
@@ -86,6 +89,7 @@ export default function EditEventScreen() {
 
         const event = response.data;
         setEventName(event.name);
+        setEventType(event.event_type ?? "wedding");
         setDescription(event.description ?? "");
         setTargetContribution(String(event.target_contribution));
         setGroomName(event.groom_name);
@@ -134,17 +138,23 @@ export default function EditEventScreen() {
     const time = eventTime.trim();
     const venue = venueName.trim();
     const address = venueAddress.trim();
+    const typeConfig = getEventTypeConfig(eventType);
 
     if (name.length < 2 || name.length > 255) {
       setErrorMessage("Enter an event name between 2 and 255 characters.");
       return;
     }
-    if (groom.length < 2 || groom.length > 100) {
-      setErrorMessage("The groom's name must be between 2 and 100 characters.");
-      return;
-    }
-    if (bride.length < 2 || bride.length > 100) {
-      setErrorMessage("The bride's name must be between 2 and 100 characters.");
+    if (typeConfig.needsPair) {
+      if (groom.length < 2 || groom.length > 100) {
+        setErrorMessage("The groom's name must be between 2 and 100 characters.");
+        return;
+      }
+      if (bride.length < 2 || bride.length > 100) {
+        setErrorMessage("The bride's name must be between 2 and 100 characters.");
+        return;
+      }
+    } else if (groom.length < 2 || groom.length > 100) {
+      setErrorMessage(`The ${typeConfig.hostLabel.toLowerCase()}'s name must be between 2 and 100 characters.`);
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -177,11 +187,13 @@ export default function EditEventScreen() {
 
     try {
       const response = await api.put<EventResponse>(`/events/${eventId}`, {
+        event_type: eventType,
         name,
         description: description.trim() || null,
         target_contribution: target,
-        groom_name: groom,
-        bride_name: bride,
+        ...(typeConfig.needsPair
+          ? { groom_name: groom, bride_name: bride }
+          : { couple_names: groom }),
         event_date: date,
         event_time: time,
         venue_name: venue,
@@ -258,43 +270,81 @@ export default function EditEventScreen() {
 
           {!isLoading && isLoaded ? (
             <>
+              <Text style={styles.label}>EVENT TYPE</Text>
+              <View style={styles.typeRow}>
+                {EVENT_TYPES.map((type) => (
+                  <Pressable
+                    key={type.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: eventType === type.value, disabled: isSaving }}
+                    disabled={isSaving}
+                    onPress={() => setEventType(type.value)}
+                    style={[styles.typeChip, eventType === type.value && styles.typeChipActive]}
+                  >
+                    <Text style={styles.typeIcon}>{type.icon}</Text>
+                    <Text style={[styles.typeText, eventType === type.value && styles.typeTextActive]}>
+                      {type.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
               <Text style={styles.label}>EVENT NAME</Text>
               <TextInput
                 accessibilityLabel="Event name"
                 editable={!isSaving}
                 maxLength={255}
                 onChangeText={setEventName}
-                placeholder="Wedding celebration"
+                placeholder={getEventTypeConfig(eventType).namePlaceholder}
                 placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 value={eventName}
               />
 
-              <Text style={styles.label}>GROOM NAME</Text>
-              <TextInput
-                accessibilityLabel="Groom name"
-                autoCapitalize="words"
-                editable={!isSaving}
-                maxLength={100}
-                onChangeText={setGroomName}
-                placeholder="Groom's name"
-                placeholderTextColor={colors.textMuted}
-                style={styles.input}
-                value={groomName}
-              />
+              {getEventTypeConfig(eventType).needsPair ? (
+                <>
+                  <Text style={styles.label}>GROOM NAME</Text>
+                  <TextInput
+                    accessibilityLabel="Groom name"
+                    autoCapitalize="words"
+                    editable={!isSaving}
+                    maxLength={100}
+                    onChangeText={setGroomName}
+                    placeholder="Groom's name"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.input}
+                    value={groomName}
+                  />
 
-              <Text style={styles.label}>BRIDE NAME</Text>
-              <TextInput
-                accessibilityLabel="Bride name"
-                autoCapitalize="words"
-                editable={!isSaving}
-                maxLength={100}
-                onChangeText={setBrideName}
-                placeholder="Bride's name"
-                placeholderTextColor={colors.textMuted}
-                style={styles.input}
-                value={brideName}
-              />
+                  <Text style={styles.label}>BRIDE NAME</Text>
+                  <TextInput
+                    accessibilityLabel="Bride name"
+                    autoCapitalize="words"
+                    editable={!isSaving}
+                    maxLength={100}
+                    onChangeText={setBrideName}
+                    placeholder="Bride's name"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.input}
+                    value={brideName}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>{getEventTypeConfig(eventType).hostLabel}</Text>
+                  <TextInput
+                    accessibilityLabel={getEventTypeConfig(eventType).hostLabel.toLowerCase()}
+                    autoCapitalize="words"
+                    editable={!isSaving}
+                    maxLength={100}
+                    onChangeText={setGroomName}
+                    placeholder={getEventTypeConfig(eventType).hostPlaceholder}
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.input}
+                    value={groomName}
+                  />
+                </>
+              )}
 
               <Text style={styles.label}>DATE · YYYY-MM-DD</Text>
               <TextInput
@@ -429,6 +479,12 @@ const styles = StyleSheet.create({
   input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
   multilineInput: { minHeight: 110, paddingTop: 12 },
   statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
+  typeRow: { flexDirection: "row", gap: 8, marginBottom: 18 },
+  typeChip: { flex: 1, minHeight: 64, alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
+  typeChipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  typeIcon: { fontSize: 20 },
+  typeText: { color: colors.textMuted, fontSize: 12, fontWeight: "700" },
+  typeTextActive: { color: colors.accent },
   statusChip: { paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 20 },
   statusChipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
   statusChipText: { color: colors.textMuted, fontSize: 12, fontWeight: "700", textTransform: "capitalize" },

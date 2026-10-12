@@ -1,9 +1,10 @@
 import { useState } from "react";
 import axios from "axios";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import AuthLayout from "../../components/AuthLayout";
 import { colors } from "../../constants/theme";
+import { PLAN_PRICES, isPlanName } from "../../constants/plans";
 import api from "../../services/api";
 
 type ApiErrorResponse = {
@@ -13,6 +14,9 @@ type ApiErrorResponse = {
 };
 
 export default function RegisterScreen() {
+  const params = useLocalSearchParams<{ plan?: string | string[] }>();
+  const planParam = Array.isArray(params.plan) ? params.plan[0] : params.plan;
+  const selectedPlan = isPlanName(planParam) ? planParam : null;
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -98,6 +102,17 @@ export default function RegisterScreen() {
       title="Create your account"
       subtitle="One space for every detail of your celebration."
     >
+      {selectedPlan ? (
+        <View style={styles.planBanner}>
+          <View style={styles.planBannerCopy}>
+            <Text style={styles.planBannerLabel}>KIFURUSHI ULICHOCHAGUA</Text>
+            <Text style={styles.planBannerValue}>{selectedPlan} · TSh {PLAN_PRICES[selectedPlan]} kwa kadi</Text>
+          </View>
+          <Pressable accessibilityRole="link" onPress={() => router.replace("/")} hitSlop={8}>
+            <Text style={styles.planBannerChange}>Badilisha</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <Text style={styles.label}>FULL NAME</Text>
       <TextInput
         accessibilityLabel="Full name"
@@ -183,11 +198,19 @@ export default function RegisterScreen() {
           <Text style={styles.footerLink}>Log in</Text>
         </Pressable>
       </View>
+      <Pressable accessibilityRole="link" onPress={() => router.replace("/")} style={styles.homeLink}>
+        <Text style={styles.footerLink}>Rudi kwenye ukurasa wa mwanzo</Text>
+      </Pressable>
     </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  planBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 14, marginBottom: 18, borderRadius: 12, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  planBannerCopy: { flex: 1 },
+  planBannerLabel: { color: colors.accent, fontSize: 9, fontWeight: "800", letterSpacing: 1.4 },
+  planBannerValue: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: 4 },
+  planBannerChange: { color: colors.link, fontSize: 12, fontWeight: "700" },
   label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.55, marginBottom: 8 },
   input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 15 },
   passwordField: { minHeight: 50, flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, paddingHorizontal: 14 },
@@ -210,6 +233,7 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 5, marginTop: 20 },
   footerText: { color: colors.textMuted, fontSize: 13 },
   footerLink: { color: colors.link, fontSize: 13, fontWeight: "700" },
+  homeLink: { alignSelf: "center", marginTop: 14, paddingVertical: 4 },
   pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
   disabledButton: { opacity: 0.65 },
 });

@@ -13,9 +13,11 @@ import {
 import { router } from "expo-router";
 import api from "../src/services/api";
 import { colors } from "../src/constants/theme";
+import { EVENT_TYPES, getEventTypeConfig, type EventType } from "../src/constants/eventTypes";
 
 type EventResponse = {
   id: number;
+  event_type: EventType;
   name: string;
   couple_names: string;
   groom_name: string;
@@ -59,6 +61,7 @@ function getTodayIsoDate(): string {
 }
 
 export default function CreateEventScreen() {
+  const [eventType, setEventType] = useState<EventType>("wedding");
   const [name, setName] = useState("");
   const [coupleNames, setCoupleNames] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -73,6 +76,7 @@ export default function CreateEventScreen() {
   async function createEvent() {
     if (isSubmitting) return;
 
+    const typeConfig = getEventTypeConfig(eventType);
     const eventName = name.trim();
     const couple = coupleNames.trim();
     const date = eventDate.trim();
@@ -84,9 +88,11 @@ export default function CreateEventScreen() {
 
     const issue = !eventName || eventName.length < 2 || eventName.length > 255
       ? "Enter an event name between 2 and 255 characters."
-      : coupleParts.length !== 2 || coupleParts.some((part) => part.length < 2 || part.length > 100)
+      : typeConfig.needsPair && (coupleParts.length !== 2 || coupleParts.some((part) => part.length < 2 || part.length > 100))
         ? "Enter both couple names separated by '&', for example John & Mary."
-        : !isValidIsoDate(date)
+        : !typeConfig.needsPair && (couple.length < 2 || couple.length > 100)
+          ? `Enter the ${typeConfig.hostLabel.toLowerCase()}'s name (2 to 100 characters).`
+          : !isValidIsoDate(date)
           ? "Enter a valid date in YYYY-MM-DD format."
           : date < getTodayIsoDate()
             ? "The event date cannot be in the past."
@@ -112,6 +118,7 @@ export default function CreateEventScreen() {
 
     try {
       const response = await api.post<EventResponse>("/events", {
+        event_type: eventType,
         name: eventName,
         couple_names: couple,
         event_date: date,
@@ -168,11 +175,30 @@ export default function CreateEventScreen() {
             <Text style={styles.backText}>‹  Dashboard</Text>
           </Pressable>
 
-          <Text style={styles.eyebrow}>A NEW CHAPTER</Text>
+          <Text style={styles.eyebrow}>{getEventTypeConfig(eventType).eyebrow}</Text>
           <Text style={styles.title}>Create an event</Text>
           <Text style={styles.subtitle}>
-            Add the celebration details, then invite guests and start planning.
+            Choose the type of celebration, add the details, then invite guests and start planning.
           </Text>
+
+          <Text style={styles.label}>EVENT TYPE</Text>
+          <View style={styles.typeRow}>
+            {EVENT_TYPES.map((type) => (
+              <Pressable
+                key={type.value}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: eventType === type.value, disabled: isSubmitting }}
+                disabled={isSubmitting}
+                onPress={() => setEventType(type.value)}
+                style={[styles.typeChip, eventType === type.value && styles.typeChipActive]}
+              >
+                <Text style={styles.typeIcon}>{type.icon}</Text>
+                <Text style={[styles.typeText, eventType === type.value && styles.typeTextActive]}>
+                  {type.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
           <Text style={styles.label}>EVENT NAME</Text>
           <TextInput
@@ -181,26 +207,27 @@ export default function CreateEventScreen() {
             editable={!isSubmitting}
             maxLength={255}
             onChangeText={setName}
-            placeholder="Wedding Ceremony"
+            placeholder={getEventTypeConfig(eventType).namePlaceholder}
             placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={styles.input}
             value={name}
           />
 
-          <Text style={styles.label}>COUPLE NAMES</Text>
+          <Text style={styles.label}>{getEventTypeConfig(eventType).hostLabel}</Text>
           <TextInput
-            accessibilityLabel="Couple names"
+            accessibilityLabel={getEventTypeConfig(eventType).hostLabel.toLowerCase()}
             autoCapitalize="words"
             editable={!isSubmitting}
             maxLength={203}
             onChangeText={setCoupleNames}
-            placeholder="John & Mary"
+            placeholder={getEventTypeConfig(eventType).hostPlaceholder}
             placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={styles.input}
             value={coupleNames}
           />
+          <Text style={styles.helper}>{getEventTypeConfig(eventType).hostHelper}</Text>
 
           <View style={styles.splitFields}>
             <View style={styles.splitField}>
@@ -257,7 +284,7 @@ export default function CreateEventScreen() {
             maxLength={5000}
             multiline
             onChangeText={setDescription}
-            placeholder="Tell guests about the celebration"
+            placeholder={getEventTypeConfig(eventType).descriptionPlaceholder}
             placeholderTextColor={colors.textMuted}
             returnKeyType="next"
             style={[styles.input, styles.descriptionInput]}
@@ -265,7 +292,7 @@ export default function CreateEventScreen() {
             value={description}
           />
 
-          <Text style={styles.label}>TARGET CONTRIBUTION · TSH</Text>
+          <Text style={styles.label}>{getEventTypeConfig(eventType).contributionLabel}</Text>
           <TextInput
             accessibilityLabel="Target contribution in Tanzanian shillings"
             editable={!isSubmitting}
@@ -312,7 +339,13 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textMuted, fontSize: 15, lineHeight: 23, marginTop: 8, marginBottom: 24 },
   label: { color: colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.4, marginBottom: 8 },
   input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.card, color: colors.text, paddingHorizontal: 14, fontSize: 14, marginBottom: 16 },
-  splitFields: { flexDirection: "row", gap: 12 },
+  splitFields: { flexDirection: "row", gap: 12, marginTop: 16 },
+  typeRow: { flexDirection: "row", gap: 8, marginBottom: 18 },
+  typeChip: { flex: 1, minHeight: 64, alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card },
+  typeChipActive: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  typeIcon: { fontSize: 20 },
+  typeText: { color: colors.textMuted, fontSize: 12, fontWeight: "700" },
+  typeTextActive: { color: colors.accent },
   splitField: { flex: 1 },
   descriptionInput: { minHeight: 92, paddingTop: 13 },
   helper: { color: colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: -7 },

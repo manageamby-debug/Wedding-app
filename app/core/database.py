@@ -62,6 +62,7 @@ def prepare_database():
                 for column in connection.exec_driver_sql("PRAGMA table_info(events)")
             }
             additions = {
+                "event_type": "VARCHAR(20) NOT NULL DEFAULT 'wedding'",
                 "description": "VARCHAR",
                 "name": "VARCHAR(255) NOT NULL DEFAULT ''",
                 "couple_names": "VARCHAR(203) NOT NULL DEFAULT ''",

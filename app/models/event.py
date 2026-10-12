@@ -14,6 +14,11 @@ class Event(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     user = relationship("User", back_populates="events")
 
+    # wedding | birthday | graduation. For non-wedding events the celebrant's
+    # name is stored in couple_names / groom_name and bride_name stays empty.
+    event_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="wedding", server_default="wedding"
+    )
     name: Mapped[str] = mapped_column(
         String(255), nullable=False, default="", server_default=""
     )

@@ -12,6 +12,12 @@ class EventStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class EventType(str, Enum):
+    WEDDING = "wedding"
+    BIRTHDAY = "birthday"
+    GRADUATION = "graduation"
+
+
 def _validate_couple_names(value: str) -> str:
     parts = value.split("&", maxsplit=1)
     if len(parts) != 2 or any(len(part.strip()) < 2 for part in parts):
@@ -29,6 +35,27 @@ def _validate_pair_fields(couple_names: str | None, groom_name: str | None, brid
         raise ValueError("Provide couple_names or both groom_name and bride_name.")
 
 
+def _validate_host_field(couple_names: str | None, groom_name: str | None) -> None:
+    """Birthday / graduation events only need the celebrant's name."""
+    host = (couple_names if couple_names is not None else groom_name) or ""
+    if len(host.strip()) < 2:
+        raise ValueError("Enter the celebrant's name.")
+    if len(host.strip()) > 100:
+        raise ValueError("The celebrant's name must be at most 100 characters.")
+
+
+def _validate_people_fields(
+    event_type: EventType | None,
+    couple_names: str | None,
+    groom_name: str | None,
+    bride_name: str | None,
+) -> None:
+    if event_type is None or event_type == EventType.WEDDING:
+        _validate_pair_fields(couple_names, groom_name, bride_name)
+    else:
+        _validate_host_field(couple_names, groom_name)
+
+
 def _validate_venue_fields(venue: str | None, venue_name: str | None) -> None:
     if venue is None and venue_name is None:
         raise ValueError("Provide venue or venue_name.")
@@ -36,6 +63,7 @@ def _validate_venue_fields(venue: str | None, venue_name: str | None) -> None:
 
 class EventCreate(BaseModel):
     # New API fields used by the mobile event form.
+    event_type: EventType = EventType.WEDDING
     name: str | None = Field(default=None, min_length=2, max_length=255)
     couple_names: str | None = Field(default=None, min_length=2, max_length=203)
     venue: str | None = Field(default=None, min_length=2, max_length=255)
@@ -63,12 +91,17 @@ class EventCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_event_details(self):
-        _validate_pair_fields(self.couple_names, self.groom_name, self.bride_name)
+        _validate_people_fields(
+            self.event_type, self.couple_names, self.groom_name, self.bride_name
+        )
         _validate_venue_fields(self.venue, self.venue_name)
         return self
 
 
 class EventUpdate(BaseModel):
+    # None keeps the stored type, so older clients that never send it still work.
+    event_type: EventType | None = None
+
     # New API fields are optional to support the existing full-replacement PUT form.
     name: str | None = Field(default=None, min_length=2, max_length=255)
     couple_names: str | None = Field(default=None, min_length=2, max_length=203)
@@ -97,7 +130,9 @@ class EventUpdate(BaseModel):
 
     @model_validator(mode="after")
     def validate_event_details(self):
-        _validate_pair_fields(self.couple_names, self.groom_name, self.bride_name)
+        _validate_people_fields(
+            self.event_type, self.couple_names, self.groom_name, self.bride_name
+        )
         _validate_venue_fields(self.venue, self.venue_name)
         return self
 
@@ -105,6 +140,7 @@ class EventUpdate(BaseModel):
 class EventResponse(BaseModel):
     id: int
     user_id: int
+    event_type: EventType = EventType.WEDDING
     name: str
     couple_names: str
     groom_name: str

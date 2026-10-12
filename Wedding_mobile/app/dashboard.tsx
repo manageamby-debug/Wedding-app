@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import axios from "axios";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import api from "../src/services/api";
@@ -39,6 +40,7 @@ export default function Dashboard() {
 
   useFocusEffect(useCallback(() => {
     let live = true;
+    let sessionExpired = false;
     setLoading(true); setError(false);
     Promise.all([api.get<User>("/users/me"), api.get<WeddingEvent[]>("/events")])
       .then(async ([userResult, eventResult]) => {
@@ -47,8 +49,15 @@ export default function Dashboard() {
         const results = await Promise.allSettled(eventResult.data.map((event) => api.get<Summary>(`/events/${event.id}/dashboard`).then((r) => r.data)));
         if (live) setSummaries(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
       })
-      .catch(() => { if (live) setError(true); })
-      .finally(() => { if (live) setLoading(false); });
+      .catch((requestError: unknown) => {
+        if (!live) return;
+        if (axios.isAxiosError(requestError) && requestError.response?.status === 401) {
+          sessionExpired = true;
+          return;
+        }
+        setError(true);
+      })
+      .finally(() => { if (live && !sessionExpired) setLoading(false); });
     return () => { live = false; };
   }, [retry]));
 
@@ -175,7 +184,7 @@ const styles = StyleSheet.create({
   photoTagText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   ringWrap: { position: "absolute", top: 33, left: 0, right: 0, alignItems: "center" },
   days: { color: "#FFFFFF", fontSize: 58, fontFamily: fonts.serif, fontWeight: "700", lineHeight: 66 },
-  daysCaption: { color: "#E3E0F2", fontSize: 12, letterSpacing: 2.5, fontWeight: "500", marginTop: -2 },
+  daysCaption: { color: colors.scanText, fontSize: 12, letterSpacing: 2.5, fontWeight: "500", marginTop: -2 },
   eventDate: { position: "absolute", bottom: 22, left: 16, right: 16, color: "#FFFFFF", fontSize: 21, fontFamily: fonts.serif, fontWeight: "700", textAlign: "center" },
 
   statsCard: { flexDirection: "row", marginTop: 14, height: 80, borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },

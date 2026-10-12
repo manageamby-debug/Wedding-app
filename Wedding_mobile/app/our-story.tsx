@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   bigTile: { flex: 2, height: 150 },
   smallTile: { flex: 1 },
   photoTile: { borderRadius: 20, overflow: "hidden", backgroundColor: colors.surface },
-  photoImage: { ...StyleSheet.absoluteFillObject },
+  photoImage: { ...StyleSheet.absoluteFill },
   addTile: { borderRadius: 20, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   emptySlot: { borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   more: { position: "absolute", right: 8, bottom: 8, borderRadius: 13, backgroundColor: "rgba(20,14,34,0.7)", paddingHorizontal: 10, height: 26, alignItems: "center", justifyContent: "center" },
